@@ -31,19 +31,23 @@ impl Default for TokenHeaders {
 
 impl TokenHeaders {
     /// `X-metadata-token` header.
-    const X_METADATA_TOKEN: &'static str = "X-metadata-token";
+    const X_METADATA_TOKEN: &'static str = "x-metadata-token";
     /// `X-metadata-token-ttl-seconds` header.
-    const X_METADATA_TOKEN_TTL_SECONDS: &'static str = "X-metadata-token-ttl-seconds";
+    const X_METADATA_TOKEN_TTL_SECONDS: &'static str = "x-metadata-token-ttl-seconds";
 
     /// Return `TokenHeaders` from headers map.
     pub fn try_from(map: &HashMap<String, String>) -> Result<TokenHeaders, RequestError> {
         let mut headers = Self::default();
+        let lowercased_headers: HashMap<String, String> = map
+            .iter()
+            .map(|(k, v)| (k.to_lowercase(), v.clone()))
+            .collect();
 
-        if let Some(token) = map.get(TokenHeaders::X_METADATA_TOKEN) {
+        if let Some(token) = lowercased_headers.get(TokenHeaders::X_METADATA_TOKEN) {
             headers.x_metadata_token = Some(token.to_string());
         }
 
-        if let Some(value) = map.get(TokenHeaders::X_METADATA_TOKEN_TTL_SECONDS) {
+        if let Some(value) = lowercased_headers.get(TokenHeaders::X_METADATA_TOKEN_TTL_SECONDS) {
             match value.parse::<u32>() {
                 Ok(seconds) => {
                     headers.x_metadata_token_ttl_seconds = Some(seconds);
