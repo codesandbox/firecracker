@@ -143,5 +143,16 @@ mod tests {
                 "-60".to_string()
             ))
         );
+
+        // Uppercased headers
+        let mut map: HashMap<String, String> = HashMap::default();
+        map.insert(
+            TokenHeaders::X_METADATA_TOKEN_TTL_SECONDS
+                .to_string()
+                .to_uppercase(),
+            "60".to_string(),
+        );
+        let headers = TokenHeaders::try_from(&map).unwrap();
+        assert_eq!(headers.x_metadata_token_ttl_seconds().unwrap(), 60);
     }
 }
