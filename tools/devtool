@@ -72,7 +72,7 @@
 DEVCTR_IMAGE_NO_TAG="public.ecr.aws/firecracker/fcuvm"
 
 # Development container tag
-DEVCTR_IMAGE_TAG="v35"
+DEVCTR_IMAGE_TAG="v36"
 
 # Development container image (name:tag)
 # This should be updated whenever we upgrade the development container.
@@ -1082,6 +1082,8 @@ cmd_build_release_archive() {
     for file in "LICENSE" "NOTICE" "THIRD-PARTY"; do
         add_file_artifact "$release_dir" "$file"
     done
+
+    find $release_dir -type f |sort |xargs sha256sum > SHA256SUMS.$(uname -m)
 
     # Run tests to obtain test reports dir.
     cmd_test || cleanup_release_dir "$release_dir" "Tests failed."
