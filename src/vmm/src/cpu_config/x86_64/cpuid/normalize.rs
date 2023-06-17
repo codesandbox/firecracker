@@ -58,9 +58,12 @@ pub enum FeatureInformationError {
     /// Failed to set max CPUs per package.
     #[error("Failed to set max CPUs per package: {0}")]
     SetMaxCpusPerPackage(CheckedAssignError),
+<<<<<<< HEAD
     /// Failed to disable async pf
     #[error("Failed to disable async pf")]
     DisableAsyncPf,
+=======
+>>>>>>> main
 }
 
 /// Error type for `get_max_cpus_per_package`.
@@ -211,7 +214,10 @@ impl super::Cpuid {
         self.update_feature_info_entry(cpu_index, cpu_count)?;
         self.update_extended_topology_entry(cpu_index, cpu_count, cpu_bits, cpus_per_core)?;
         self.update_extended_cache_features()?;
+<<<<<<< HEAD
         self.disable_kvm_feature_async_pf()?;
+=======
+>>>>>>> main
 
         // Apply manufacturer specific modifications.
         match self {
@@ -326,6 +332,7 @@ impl super::Cpuid {
         Ok(())
     }
 
+<<<<<<< HEAD
     /// Disable async pf, as it hangs the VM from time to time
     ///
     /// # Errors
@@ -345,6 +352,8 @@ impl super::Cpuid {
         Ok(())
     }
 
+=======
+>>>>>>> main
     /// Update extended topology entry
     fn update_extended_topology_entry(
         &mut self,
