@@ -36,7 +36,7 @@ impl Balloon {
     }
 
     fn process_activate_event(&self, ops: &mut EventOps) {
-        debug!("balloon: activate event");
+        debug!("balloon: activate eventeeeee");
         if let Err(err) = self.activate_evt.read() {
             error!("Failed to consume balloon activate event: {:?}", err);
         }
