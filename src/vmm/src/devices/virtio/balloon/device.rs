@@ -8,7 +8,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
-use logger::{debug, error, IncMetric, METRICS};
+use logger::{error, IncMetric, METRICS};
 use serde::Serialize;
 use timerfd::{ClockId, SetTimeFlags, TimerFd, TimerState};
 use utils::eventfd::EventFd;
@@ -158,7 +158,6 @@ impl Balloon {
         stats_polling_interval_s: u16,
         restored: bool,
     ) -> Result<Balloon, BalloonError> {
-        debug!("creating new balloon");
         let mut avail_features = 1u64 << VIRTIO_F_VERSION_1;
 
         if deflate_on_oom {
@@ -208,45 +207,32 @@ impl Balloon {
     }
 
     pub(crate) fn process_inflate_queue_event(&mut self) -> Result<(), BalloonError> {
-        debug!("balloon: inflate queue event");
         self.queue_evts[INFLATE_INDEX]
             .read()
             .map_err(BalloonError::EventFd)?;
-        self.process_inflate()?;
-        debug!("balloon: inflate queue event done");
-        Ok(())
+        self.process_inflate()
     }
 
     pub(crate) fn process_deflate_queue_event(&mut self) -> Result<(), BalloonError> {
-        debug!("balloon: deflate queue event");
         self.queue_evts[DEFLATE_INDEX]
             .read()
             .map_err(BalloonError::EventFd)?;
-        self.process_deflate_queue()?;
-        debug!("balloon: deflate queue event done");
-        Ok(())
+        self.process_deflate_queue()
     }
 
     pub(crate) fn process_stats_queue_event(&mut self) -> Result<(), BalloonError> {
-        debug!("balloon: process stats queue event");
         self.queue_evts[STATS_INDEX]
             .read()
             .map_err(BalloonError::EventFd)?;
-        self.process_stats_queue()?;
-        debug!("balloon: process stats queue event finished");
-        Ok(())
+        self.process_stats_queue()
     }
 
     pub(crate) fn process_stats_timer_event(&mut self) -> Result<(), BalloonError> {
-        debug!("balloon: process stats timer event");
         self.stats_timer.read();
-        self.trigger_stats_update()?;
-        debug!("balloon: process stats timer event done");
-        Ok(())
+        self.trigger_stats_update()
     }
 
     pub(crate) fn process_inflate(&mut self) -> Result<(), BalloonError> {
-        debug!("balloon: process inflate queue");
         // This is safe since we checked in the event handler that the device is activated.
         let mem = self.device_state.mem().unwrap();
         METRICS.balloon.inflate_count.inc();
@@ -330,19 +316,14 @@ impl Balloon {
             }
         }
 
-        debug!("balloon: process inflate queue finished, interrupting...");
-
         if needs_interrupt {
             self.signal_used_queue()?;
         }
-
-        debug!("balloon: process inflate queue finally finished");
 
         Ok(())
     }
 
     pub(crate) fn process_deflate_queue(&mut self) -> Result<(), BalloonError> {
-        debug!("balloon: process deflate queue");
         // This is safe since we checked in the event handler that the device is activated.
         let mem = self.device_state.mem().unwrap();
         METRICS.balloon.deflate_count.inc();
@@ -358,17 +339,13 @@ impl Balloon {
         }
 
         if needs_interrupt {
-            debug!("balloon: process deflate queue finished, interrupting...");
-            self.signal_used_queue()?;
-            debug!("balloon: process deflate queue finished");
-            Ok(())
+            self.signal_used_queue()
         } else {
             Ok(())
         }
     }
 
     pub(crate) fn process_stats_queue(&mut self) -> std::result::Result<(), BalloonError> {
-        debug!("balloon: process stats queue");
         // This is safe since we checked in the event handler that the device is activated.
         let mem = self.device_state.mem().unwrap();
         METRICS.balloon.stats_updates_count.inc();
@@ -402,8 +379,6 @@ impl Balloon {
 
             self.stats_desc_index = Some(head.index);
         }
-
-        debug!("balloon: process stats queue finished");
 
         Ok(())
     }

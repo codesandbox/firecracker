@@ -36,7 +36,7 @@ use crate::device_manager::persist::{DeviceStates, Error as DevicePersistError};
 use crate::devices::virtio::TYPE_NET;
 use crate::memory_snapshot::{mem_dump_dirty, GuestMemoryState, SnapshotMemory};
 use crate::resources::VmResources;
-
+use crate::rpc_interface::LoadSnapshotError;
 #[cfg(target_arch = "x86_64")]
 use crate::version_map::FC_V0_23_SNAP_VERSION;
 use crate::version_map::{FC_V1_0_SNAP_VERSION, FC_V1_1_SNAP_VERSION, FC_VERSION_TO_SNAP_VERSION};
