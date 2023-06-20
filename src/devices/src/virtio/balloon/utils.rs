@@ -68,7 +68,7 @@ pub(crate) fn compact_page_frame_numbers(v: &mut [u32]) -> Vec<(u32, u32)> {
 pub(crate) fn remove_range(
     guest_memory: &GuestMemoryMmap,
     range: (GuestAddress, u64),
-    restored: bool,
+    _restored: bool,
 ) -> std::result::Result<(), RemoveRegionError> {
     let (guest_address, range_len) = range;
 
@@ -80,25 +80,26 @@ pub(crate) fn remove_range(
             .get_host_address(guest_address)
             .map_err(|_| RemoveRegionError::AddressTranslation)?;
 
-        // Mmap a new anonymous region over the present one in order to create a hole.
-        // This workaround is (only) needed after resuming from a snapshot because the guest memory
-        // is mmaped from file as private and there is no `madvise` flag that works for this case.
-        if restored {
-            // SAFETY: The address and length are known to be valid.
-            let ret = unsafe {
-                libc::mmap(
-                    phys_address.cast(),
-                    range_len as usize,
-                    libc::PROT_READ | libc::PROT_WRITE,
-                    libc::MAP_FIXED | libc::MAP_ANONYMOUS | libc::MAP_PRIVATE,
-                    -1,
-                    0,
-                )
-            };
-            if ret == libc::MAP_FAILED {
-                return Err(RemoveRegionError::MmapFail(io::Error::last_os_error()));
-            }
-        };
+        // CodeSandbox: since we use UFFD handler, this is not needed for us. In fact, it breaks the UFFD handler
+        // if this happens right now, as it unregisters the UFFD handler for the given range.
+        // // Mmap a new anonymous region over the present one in order to create a hole.
+        // // This workaround is (only) needed after resuming from a snapshot because the guest memory
+        // // is mmaped from file as private and there is no `madvise` flag that works for this case.
+        // if restored {
+        //     let ret = unsafe {
+        //         libc::mmap(
+        //             phys_address as *mut _,
+        //             range_len as usize,
+        //             libc::PROT_READ | libc::PROT_WRITE,
+        //             libc::MAP_FIXED | libc::MAP_ANONYMOUS | libc::MAP_PRIVATE,
+        //             -1,
+        //             0,
+        //         )
+        //     };
+        //     if ret == libc::MAP_FAILED {
+        //         return Err(RemoveRegionError::MmapFail(io::Error::last_os_error()));
+        //     }
+        // };
 
         // Madvise the region in order to mark it as not used.
         // SAFETY: The address and length are known to be valid.

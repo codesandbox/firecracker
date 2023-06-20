@@ -15,11 +15,15 @@ lazy_static = "1.4.0"
 libc = "0.2.117"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.78"
-userfaultfd = "0.5.0"
+userfaultfd = { git = "https://github.com/codesandbox/userfaultfd-rs.git", rev = "b11a187b5743847dda76ed8df5419c3607d21375", features = [
+  "linux5_7",
+] }
 versionize = "0.1.6"
 versionize_derive = "0.1.4"
 vm-allocator = "0.1.0"
-derive_more = { version = "0.99.17", default-features = false, features = ["from"] }
+derive_more = { version = "0.99.17", default-features = false, features = [
+  "from",
+] }
 thiserror = "1.0.32"
 
 arch = { path = "../arch" }
@@ -28,7 +32,7 @@ logger = { path = "../logger" }
 mmds = { path = "../mmds" }
 rate_limiter = { path = "../rate_limiter" }
 seccompiler = { path = "../seccompiler" }
-snapshot = { path = "../snapshot"}
+snapshot = { path = "../snapshot" }
 utils = { path = "../utils" }
 virtio_gen = { path = "../virtio_gen" }
 vm-memory = { path = "../vm-memory" }

@@ -3,10 +3,12 @@
 
 //! Defines state structures for saving/restoring a Firecracker microVM.
 
+use std::ffi::CString;
 use std::fs::{File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixStream;
+use std::os::unix::prelude::FromRawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -15,7 +17,9 @@ use arch::regs::{get_manufacturer_id_from_host, get_manufacturer_id_from_state};
 #[cfg(target_arch = "x86_64")]
 use cpuid::common::{get_vendor_id_from_cpuid, get_vendor_id_from_host};
 use devices::virtio::TYPE_NET;
-use logger::{error, info, warn};
+use libc::memfd_create;
+use logger::warn;
+use logger::{error, info};
 use seccompiler::BpfThreadMap;
 use serde::Serialize;
 use snapshot::Snapshot;
@@ -28,7 +32,7 @@ use vm_memory::{GuestMemory, GuestMemoryMmap};
 
 use crate::builder::{self, BuildMicrovmFromSnapshotError};
 use crate::device_manager::persist::{DeviceStates, Error as DevicePersistError};
-use crate::memory_snapshot::{GuestMemoryState, SnapshotMemory};
+use crate::memory_snapshot::{mem_dump_dirty, GuestMemoryState, SnapshotMemory};
 use crate::resources::VmResources;
 #[cfg(target_arch = "x86_64")]
 use crate::version_map::FC_V0_23_SNAP_VERSION;
@@ -235,7 +239,9 @@ pub fn create_snapshot(
         version_map,
     )?;
 
-    snapshot_memory_to_file(vmm, &params.mem_file_path, &params.snapshot_type)?;
+    if params.snapshot_type == SnapshotType::Full {
+        snapshot_memory_to_file(vmm, &params.mem_file_path, &params.snapshot_type)?;
+    }
 
     Ok(())
 }
@@ -272,12 +278,28 @@ fn snapshot_memory_to_file(
     snapshot_type: &SnapshotType,
 ) -> std::result::Result<(), CreateSnapshotError> {
     use self::CreateSnapshotError::*;
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(mem_file_path)
-        .map_err(|err| MemoryBackingFile("open", err))?;
+
+    let mut file = if mem_file_path.to_string_lossy() == "memfd" {
+        let fd = unsafe {
+            let memfd_name = CString::new("diff").unwrap();
+            memfd_create(memfd_name.as_ptr(), 0)
+        };
+        if fd == -1 {
+            return Err(MemoryBackingFile(
+                "memfd_create",
+                std::io::Error::last_os_error(),
+            ));
+        }
+
+        unsafe { File::from_raw_fd(fd) }
+    } else {
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(mem_file_path)
+            .map_err(|err| MemoryBackingFile("open", err))?
+    };
 
     // Set the length of the file to the full size of the memory area.
     let mem_size_mib = mem_size_mib(vmm.guest_memory());
@@ -287,16 +309,19 @@ fn snapshot_memory_to_file(
     match snapshot_type {
         SnapshotType::Diff => {
             let dirty_bitmap = vmm.get_dirty_bitmap().map_err(DirtyBitmap)?;
-            vmm.guest_memory()
-                .dump_dirty(&mut file, &dirty_bitmap)
-                .map_err(Memory)
+
+            mem_dump_dirty(
+                vmm.guest_memory(),
+                file.as_raw_fd(),
+                (mem_size_mib * 1024 * 1024) as usize,
+                &dirty_bitmap,
+            )
+            .map_err(Memory)
         }
         SnapshotType::Full => vmm.guest_memory().dump(&mut file).map_err(Memory),
     }?;
-    file.flush()
-        .map_err(|err| MemoryBackingFile("flush", err))?;
-    file.sync_all()
-        .map_err(|err| MemoryBackingFile("sync_all", err))
+
+    Ok(())
 }
 
 /// Validate the microVM version and translate it to its corresponding snapshot data format.
@@ -473,6 +498,16 @@ pub fn snapshot_state_sanity_check(
     Ok(())
 }
 
+/// Describes a descriptor that connects to the memory used by the VM. This could either be the a file descriptor
+/// or a UFFD descriptor.
+#[derive(Debug)]
+pub enum MemoryDescriptor {
+    /// A file descriptor that connects to the user fault process.
+    Uffd(Uffd),
+    /// A file descriptor of the backing memory file.
+    File(Arc<File>),
+}
+
 /// Error type for [`restore_from_snapshot`].
 #[derive(Debug, thiserror::Error)]
 pub enum RestoreFromSnapshotError {
@@ -518,29 +553,27 @@ pub fn restore_from_snapshot(
     let mem_backend_path = &params.mem_backend.backend_path;
     let mem_state = &microvm_state.memory_state;
     let track_dirty_pages = params.enable_diff_snapshots;
+    let (guest_memory, memory_descriptor) = match params.mem_backend.backend_type {
+        MemBackendType::File => {
+            let (guest_memory, file) =
+                guest_memory_from_file(mem_backend_path, mem_state, track_dirty_pages)
+                    .map_err(RestoreFromSnapshotGuestMemoryError::File)?;
+            (guest_memory, Some(MemoryDescriptor::File(Arc::new(file))))
+        }
+        MemBackendType::Uffd => {
+            let (guest_memory, uffd) =
+                guest_memory_from_uffd(mem_backend_path, mem_state, track_dirty_pages)
+                    .map_err(RestoreFromSnapshotGuestMemoryError::Uffd)?;
 
-    let (guest_memory, uffd) = match params.mem_backend.backend_type {
-        MemBackendType::File => (
-            guest_memory_from_file(mem_backend_path, mem_state, track_dirty_pages)
-                .map_err(RestoreFromSnapshotGuestMemoryError::File)?,
-            None,
-        ),
-        MemBackendType::Uffd => guest_memory_from_uffd(
-            mem_backend_path,
-            mem_state,
-            track_dirty_pages,
-            // We enable the UFFD_FEATURE_EVENT_REMOVE feature only if a balloon device
-            // is present in the microVM state.
-            microvm_state.device_states.balloon_device.is_some(),
-        )
-        .map_err(RestoreFromSnapshotGuestMemoryError::Uffd)?,
+            (guest_memory, uffd.map(MemoryDescriptor::Uffd))
+        }
     };
     builder::build_microvm_from_snapshot(
         instance_info,
         event_manager,
         microvm_state,
         guest_memory,
-        uffd,
+        memory_descriptor,
         track_dirty_pages,
         seccomp_filters,
         vm_resources,
@@ -589,10 +622,16 @@ fn guest_memory_from_file(
     mem_file_path: &Path,
     mem_state: &GuestMemoryState,
     track_dirty_pages: bool,
-) -> std::result::Result<GuestMemoryMmap, GuestMemoryFromFileError> {
-    let mem_file = File::open(mem_file_path)?;
-    let guest_mem = GuestMemoryMmap::restore(Some(&mem_file), mem_state, track_dirty_pages)?;
-    Ok(guest_mem)
+) -> std::result::Result<(GuestMemoryMmap, File), GuestMemoryFromFileError> {
+    let mem_file = OpenOptions::new()
+        .write(true)
+        .read(true)
+        .open(mem_file_path)?;
+
+    Ok((
+        GuestMemoryMmap::restore(Some(&mem_file), mem_state, track_dirty_pages)?,
+        mem_file,
+    ))
 }
 
 /// Error type for [`guest_memory_from_uffd`]
@@ -613,27 +652,46 @@ pub enum GuestMemoryFromUffdError {
     /// Failed to send file descriptor.
     #[error("Failed to sends file descriptor: {0}")]
     Send(#[from] utils::errno::Error),
+
+    /// No memfd received
+    #[error("No memfd received")]
+    NoMemFdReceived,
+    /// Receiving memfd went wrong
+    #[error("Failed to receive memfd: {0}")]
+    Receive(utils::errno::Error),
 }
 
-fn guest_memory_from_uffd(
+pub(crate) fn guest_memory_from_uffd(
     mem_uds_path: &Path,
     mem_state: &GuestMemoryState,
     track_dirty_pages: bool,
-    enable_balloon: bool,
 ) -> std::result::Result<(GuestMemoryMmap, Option<Uffd>), GuestMemoryFromUffdError> {
-    let guest_memory = GuestMemoryMmap::restore(None, mem_state, track_dirty_pages)?;
+    let mut socket = UnixStream::connect(mem_uds_path)?;
 
-    let mut uffd_builder = UffdBuilder::new();
+    let mut buf = [0u8; 8];
+    let (_, memfd) = socket
+        .recv_with_fd(&mut buf)
+        .map_err(GuestMemoryFromUffdError::Receive)?;
 
-    if enable_balloon {
-        // We enable this so that the page fault handler can add logic
-        // for treating madvise(MADV_DONTNEED) events triggerd by balloon inflation.
-        uffd_builder.require_features(FeatureFlags::EVENT_REMOVE);
+    if memfd.is_none() {
+        return Err(GuestMemoryFromUffdError::NoMemFdReceived);
     }
 
-    let uffd = uffd_builder
-        .close_on_exec(true)
-        .non_blocking(true)
+    let memfd = memfd.unwrap();
+
+    let guest_memory = GuestMemoryMmap::restore(Some(&memfd), mem_state, track_dirty_pages)?;
+
+    let uffd = UffdBuilder::new()
+        .require_features(
+            FeatureFlags::EVENT_REMOVE
+                | FeatureFlags::EVENT_REMAP
+                | FeatureFlags::EVENT_FORK
+                | FeatureFlags::EVENT_UNMAP
+                | FeatureFlags::MISSING_SHMEM
+                | FeatureFlags::MINOR_SHMEM
+                | FeatureFlags::PAGEFAULT_FLAG_WP,
+        )
+        .user_mode_only(false)
         .create()
         .map_err(GuestMemoryFromUffdError::Create)?;
 
@@ -642,8 +700,6 @@ fn guest_memory_from_uffd(
         let host_base_addr = mem_region.as_ptr();
         let size = mem_region.size();
 
-        uffd.register(host_base_addr as _, size as _)
-            .map_err(GuestMemoryFromUffdError::Register)?;
         backend_mappings.push(GuestRegionUffdMapping {
             base_host_virt_addr: host_base_addr as u64,
             size,
@@ -655,7 +711,6 @@ fn guest_memory_from_uffd(
     // (i.e GuestRegionUffdMapping entries).
     let backend_mappings = serde_json::to_string(&backend_mappings).unwrap();
 
-    let socket = UnixStream::connect(mem_uds_path)?;
     socket.send_with_fd(
         backend_mappings.as_bytes(),
         // In the happy case we can close the fd since the other process has it open and is
@@ -690,6 +745,11 @@ fn guest_memory_from_uffd(
         // uffd will still be alive but with no one to serve faults, leading to guest freeze.
         uffd.as_raw_fd(),
     )?;
+
+    // Wait for UFFD to be ready.
+    // TODO: maybe add a timeout?
+    let mut buf = [0; 2];
+    socket.read_exact(&mut buf)?;
 
     Ok((guest_memory, Some(uffd)))
 }

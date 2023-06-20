@@ -22,6 +22,7 @@ use crate::vmm_config::machine_config::{VmConfig, VmConfigError, VmUpdateConfig}
 use crate::vmm_config::metrics::{init_metrics, MetricsConfig, MetricsConfigError};
 use crate::vmm_config::mmds::{MmdsConfig, MmdsConfigError};
 use crate::vmm_config::net::*;
+use crate::vmm_config::snapshot::MemBackendConfig;
 use crate::vmm_config::vsock::*;
 use crate::vstate::vcpu::VcpuConfig;
 
@@ -119,6 +120,8 @@ pub struct VmResources {
     pub mmds_size_limit: usize,
     /// Whether or not to load boot timer device.
     pub boot_timer: bool,
+    /// When backed by a memory on boot, this should be set
+    pub memory_backend: Option<MemBackendConfig>,
 }
 
 impl VmResources {
@@ -236,6 +239,16 @@ impl VmResources {
     /// Configures the dirty page tracking functionality of the microVM.
     pub fn set_track_dirty_pages(&mut self, dirty_page_tracking: bool) {
         self.vm_config.track_dirty_pages = dirty_page_tracking;
+    }
+
+    /// Returns the config for the backing memory file
+    pub fn memory_backend(&self) -> Option<MemBackendConfig> {
+        self.memory_backend.clone()
+    }
+
+    /// Sets the backing memory file
+    pub fn set_memory_backend(&mut self, backing_mem_file: MemBackendConfig) {
+        self.memory_backend.get_or_insert(backing_mem_file);
     }
 
     /// Returns the VmConfig.
@@ -589,6 +602,7 @@ mod tests {
             mmds: None,
             boot_timer: false,
             mmds_size_limit: HTTP_MAX_PAYLOAD_SIZE,
+            memory_backend: None,
         }
     }
 
