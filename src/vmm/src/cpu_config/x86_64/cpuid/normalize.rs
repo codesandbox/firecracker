@@ -58,6 +58,9 @@ pub enum FeatureInformationError {
     /// Failed to set max CPUs per package.
     #[error("Failed to set max CPUs per package: {0}")]
     SetMaxCpusPerPackage(CheckedAssignError),
+    /// Failed to disable async pf
+    #[error("Failed to disable async pf")]
+    DisableAsyncPf,
 }
 
 /// Error type for `get_max_cpus_per_package`.
@@ -208,6 +211,7 @@ impl super::Cpuid {
         self.update_feature_info_entry(cpu_index, cpu_count)?;
         self.update_extended_topology_entry(cpu_index, cpu_count, cpu_bits, cpus_per_core)?;
         self.update_extended_cache_features()?;
+        self.disable_kvm_feature_async_pf()?;
 
         // Apply manufacturer specific modifications.
         match self {
@@ -318,6 +322,25 @@ impl super::Cpuid {
         // (the Maximum number of addressable IDs for logical processors in this package)
         // is valid for the package
         set_bit(&mut leaf_1.result.edx, 28, cpu_count > 1);
+
+        Ok(())
+    }
+
+    /// Disable async pf, as it hangs the VM from time to time
+    ///
+    /// # Errors
+    ///
+    /// Returns `FeatureInformationError::DisableAsyncPf` if the leaf is not found
+    pub fn disable_kvm_feature_async_pf(&mut self) -> Result<(), FeatureInformationError> {
+        // KVM feature bits
+        #[cfg(target_arch = "x86_64")]
+        const KVM_FEATURE_ASYNC_PF_INT_BIT: u8 = 14;
+
+        let leaf: &mut CpuidEntry = self
+            .get_mut(&CpuidKey::leaf(0x4000_0001))
+            .ok_or(FeatureInformationError::DisableAsyncPf)?;
+
+        set_bit(&mut leaf.result.eax, KVM_FEATURE_ASYNC_PF_INT_BIT, false);
 
         Ok(())
     }

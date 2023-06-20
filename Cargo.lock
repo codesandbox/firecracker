@@ -133,7 +133,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e63301f0c20f3c7a75dc1cad2d2b04057ba124237813f8de2c1b5c3b98c71fc"
 dependencies = [
- "bindgen",
+ "bindgen 0.65.1",
  "cmake",
  "dunce",
  "libc",
@@ -153,6 +153,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "bindgen"
+version = "0.60.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "062dddbc1ba4aca46de6338e2bf87771414c335f7b2f2036e8f3e9befebf88e6"
+dependencies = [
+ "bitflags 1.3.2",
+ "cexpr",
+ "clang-sys",
+ "lazy_static",
+ "lazycell",
+ "peeking_take_while",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "rustc-hash",
+ "shlex",
 ]
 
 [[package]]
@@ -634,7 +653,7 @@ name = "jailer"
 version = "1.5.0-dev"
 dependencies = [
  "libc",
- "nix",
+ "nix 0.26.2",
  "regex",
  "thiserror",
  "utils",
@@ -738,9 +757,9 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "memoffset"
-version = "0.7.1"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
+checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
 dependencies = [
  "autocfg",
 ]
@@ -792,6 +811,19 @@ version = "0.1.0"
 
 [[package]]
 name = "nix"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f3790c00a0150112de0f4cd161e3d7fc4b2d8a5542ffc35f099a2562aecb35c"
+dependencies = [
+ "bitflags 1.3.2",
+ "cc",
+ "cfg-if",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
+name = "nix"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfdda3d196821d6af13126e40375cdf7da646a96114af134d5f417a9a1dc8e1a"
@@ -799,8 +831,6 @@ dependencies = [
  "bitflags 1.3.2",
  "cfg-if",
  "libc",
- "memoffset",
- "pin-utils",
  "static_assertions",
 ]
 
@@ -853,12 +883,6 @@ name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
-
-[[package]]
-name = "pin-utils"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "polyval"
@@ -1256,25 +1280,23 @@ checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 
 [[package]]
 name = "userfaultfd"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2320ae2edd0b11cf05dcd53614e5c72cb9f9ac9aab1b4ff4fe4f1cc4f92e3592"
+version = "0.5.0"
+source = "git+https://github.com/codesandbox/userfaultfd-rs.git?rev=3bafb90a85d8f2aa664dd391a5ae63ad1f43e3f5#3bafb90a85d8f2aa664dd391a5ae63ad1f43e3f5"
 dependencies = [
  "bitflags 1.3.2",
  "cfg-if",
  "libc",
- "nix",
+ "nix 0.23.2",
  "thiserror",
  "userfaultfd-sys",
 ]
 
 [[package]]
 name = "userfaultfd-sys"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95e584ef49b61e34905229acfa185429edca64d47c449f31ff4371dc1ba4544c"
+version = "0.4.2"
+source = "git+https://github.com/codesandbox/userfaultfd-rs.git?rev=3bafb90a85d8f2aa664dd391a5ae63ad1f43e3f5#3bafb90a85d8f2aa664dd391a5ae63ad1f43e3f5"
 dependencies = [
- "bindgen",
+ "bindgen 0.60.1",
  "cc",
  "cfg-if",
 ]

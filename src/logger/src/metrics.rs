@@ -412,6 +412,11 @@ pub struct PutRequestsMetrics {
     pub vsock_count: SharedIncMetric,
     /// Number of failures in creating a vsock device.
     pub vsock_fails: SharedIncMetric,
+
+    /// Number of PUTs for setting the memory backend
+    pub memory_backend_cfg_count: SharedIncMetric,
+    /// Number of failures in setting the memory backend
+    pub memory_backend_cfg_fails: SharedIncMetric,
 }
 
 /// Metrics specific to PATCH API Requests for counting user triggered actions and/or failures.
