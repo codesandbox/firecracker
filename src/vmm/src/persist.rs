@@ -629,6 +629,7 @@ pub(crate) fn guest_memory_from_uffd(
                 | FeatureFlags::PAGEFAULT_FLAG_WP,
         )
         .user_mode_only(false)
+        .non_blocking(true)
         .create()
         .map_err(CreateUffdBuilder)?;
 

@@ -732,6 +732,7 @@ pub fn create_uffd_guest_memory(
                 | FeatureFlags::PAGEFAULT_FLAG_WP,
         )
         .user_mode_only(false)
+        .non_blocking(true)
         .create()
         .map_err(CreateUffdBuilder)?;
 
