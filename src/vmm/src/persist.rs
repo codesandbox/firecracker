@@ -319,12 +319,14 @@ fn snapshot_state_to_file(
     snapshot
         .save(&mut snapshot_file, microvm_state)
         .map_err(SerializeMicrovmState)?;
-    snapshot_file
-        .flush()
-        .map_err(|err| SnapshotBackingFile("flush", err))?;
-    snapshot_file
-        .sync_all()
-        .map_err(|err| SnapshotBackingFile("sync_all", err))
+    // Disable the following lines as we're seeing some performance issues with btrfs on these operations
+    // snapshot_file
+    //     .flush()
+    //     .map_err(|err| SnapshotBackingFile("flush", err))?;
+    // snapshot_file
+    //     .sync_all()
+    //     .map_err(|err| SnapshotBackingFile("sync_all", err))
+    Ok(())
 }
 
 fn snapshot_memory_to_file(
