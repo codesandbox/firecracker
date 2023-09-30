@@ -4,7 +4,7 @@
 use super::super::VmmAction;
 use crate::parsed_request::{Error, ParsedRequest};
 use crate::request::Body;
-use logger::{IncMetric, METRICS};
+use vmm::logger::{IncMetric, METRICS};
 use vmm::vmm_config::snapshot::MemBackendConfig;
 
 pub(crate) fn parse_put_memory_backend(body: &Body) -> Result<ParsedRequest, Error> {
