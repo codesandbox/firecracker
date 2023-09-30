@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 
 use utils::syscall::SyscallReturnCode;
 
-use super::{Error, Result};
+use super::JailerError;
 
 // Default limit for the maximum number of file descriptors open at a time.
 const NO_FILE: u64 = 2048;
@@ -15,7 +15,7 @@ pub(crate) const FSIZE_ARG: &str = "fsize";
 // Number of files resource argument name.
 pub(crate) const NO_FILE_ARG: &str = "no-file";
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Resource {
     // Size of created files.
     RlimitFsize,
@@ -26,8 +26,41 @@ pub enum Resource {
 impl From<Resource> for u32 {
     fn from(resource: Resource) -> u32 {
         match resource {
+            #[allow(clippy::unnecessary_cast)]
+            #[allow(clippy::cast_possible_wrap)]
+            // Definition of libc::RLIMIT_FSIZE depends on the target_env:
+            //      * when equals to "musl" -> libc::RLIMIT_FSIZE is a c_int (which is an i32)
+            //      * when equals to "gnu" -> libc::RLIMIT_FSIZE is __rlimit_resource_t which is a
+            //        c_uint (which is an u32)
             Resource::RlimitFsize => libc::RLIMIT_FSIZE as u32,
+            #[allow(clippy::unnecessary_cast)]
+            #[allow(clippy::cast_possible_wrap)]
+            // Definition of libc::RLIMIT_NOFILE depends on the target_env:
+            //      * when equals to "musl" -> libc::RLIMIT_NOFILE is a c_int (which is an i32)
+            //      * when equals to "gnu" -> libc::RLIMIT_NOFILE is __rlimit_resource_t which is a
+            //        c_uint (which is an u32)
             Resource::RlimitNoFile => libc::RLIMIT_NOFILE as u32,
+        }
+    }
+}
+
+impl From<Resource> for i32 {
+    fn from(resource: Resource) -> i32 {
+        match resource {
+            #[allow(clippy::unnecessary_cast)]
+            #[allow(clippy::cast_possible_wrap)]
+            // Definition of libc::RLIMIT_FSIZE depends on the target_env:
+            //      * when equals to "musl" -> libc::RLIMIT_FSIZE is a c_int (which is an i32)
+            //      * when equals to "gnu" -> libc::RLIMIT_FSIZE is __rlimit_resource_t which is a
+            //        c_uint (which is an u32)
+            Resource::RlimitFsize => libc::RLIMIT_FSIZE as i32,
+            #[allow(clippy::unnecessary_cast)]
+            #[allow(clippy::cast_possible_wrap)]
+            // Definition of libc::RLIMIT_NOFILE depends on the target_env:
+            //      * when equals to "musl" -> libc::RLIMIT_NOFILE is a c_int (which is an i32)
+            //      * when equals to "gnu" -> libc::RLIMIT_NOFILE is __rlimit_resource_t which is a
+            //        c_uint (which is an u32)
+            Resource::RlimitNoFile => libc::RLIMIT_NOFILE as i32,
         }
     }
 }
@@ -57,7 +90,7 @@ impl Default for ResourceLimits {
 }
 
 impl ResourceLimits {
-    pub fn install(self) -> Result<()> {
+    pub fn install(self) -> Result<(), JailerError> {
         if let Some(file_size) = self.file_size {
             // Set file size limit.
             ResourceLimits::set_limit(Resource::RlimitFsize, file_size)?;
@@ -68,15 +101,17 @@ impl ResourceLimits {
         Ok(())
     }
 
-    fn set_limit(resource: Resource, target: libc::rlim_t) -> Result<()> {
+    fn set_limit(resource: Resource, target: libc::rlim_t) -> Result<(), JailerError> {
         let rlim: libc::rlimit = libc::rlimit {
             rlim_cur: target,
             rlim_max: target,
         };
 
-        SyscallReturnCode(unsafe { libc::setrlimit(u32::from(resource) as _, &rlim) })
+        // SAFETY: Safe because `resource` is a known-valid constant, and `&rlim`
+        // is non-dangling.
+        SyscallReturnCode(unsafe { libc::setrlimit(resource.into(), &rlim) })
             .into_empty_result()
-            .map_err(|_| Error::Setrlimit(resource.to_string()))
+            .map_err(|_| JailerError::Setrlimit(resource.to_string()))
     }
 
     pub fn set_file_size(&mut self, file_size: u64) {
@@ -90,12 +125,17 @@ impl ResourceLimits {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::undocumented_unsafe_blocks)]
     use super::*;
 
     #[test]
+    #[allow(clippy::unnecessary_cast)]
     fn test_from_resource() {
-        assert_eq!(u32::from(Resource::RlimitFsize), libc::RLIMIT_FSIZE as _);
-        assert_eq!(u32::from(Resource::RlimitNoFile), libc::RLIMIT_NOFILE as _);
+        assert_eq!(u32::from(Resource::RlimitFsize), libc::RLIMIT_FSIZE as u32);
+        assert_eq!(
+            u32::from(Resource::RlimitNoFile),
+            libc::RLIMIT_NOFILE as u32
+        );
     }
 
     #[test]
@@ -131,7 +171,7 @@ mod tests {
             rlim_cur: 0,
             rlim_max: 0,
         };
-        unsafe { libc::getrlimit(u32::from(resource) as _, &mut rlim) };
+        unsafe { libc::getrlimit(resource.into(), &mut rlim) };
         assert_ne!(rlim.rlim_cur, new_limit);
         assert_ne!(rlim.rlim_max, new_limit);
 
@@ -143,7 +183,7 @@ mod tests {
             rlim_cur: 0,
             rlim_max: 0,
         };
-        unsafe { libc::getrlimit(u32::from(resource) as _, &mut rlim) };
+        unsafe { libc::getrlimit(resource.into(), &mut rlim) };
         assert_eq!(rlim.rlim_cur, new_limit);
         assert_eq!(rlim.rlim_max, new_limit);
     }

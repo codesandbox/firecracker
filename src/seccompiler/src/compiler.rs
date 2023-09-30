@@ -17,7 +17,7 @@
 //! [`SeccompCmpOp`](../backend/enum.SeccompCmpOp.html),
 //! [`SeccompCmpArgLen`](../backend/enum.SeccompCmpArgLen.html).
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::{Into, TryInto};
 use std::{fmt, result};
 
@@ -25,43 +25,26 @@ use serde::de::{self, Error as _, MapAccess, Visitor};
 use serde::Deserialize;
 
 use crate::backend::{
-    Comment, Error as SeccompFilterError, SeccompAction, SeccompCondition, SeccompFilter,
-    SeccompRule, SeccompRuleMap, TargetArch,
+    Comment, FilterError, SeccompAction, SeccompCondition, SeccompFilter, SeccompRule,
+    SeccompRuleMap, TargetArch,
 };
 use crate::common::BpfProgram;
 use crate::syscall_table::SyscallTable;
 
-type Result<T> = result::Result<T, Error>;
-
 /// Errors compiling Filters into BPF.
-#[derive(Debug, PartialEq, derive_more::From)]
-pub(crate) enum Error {
-    /// Filter and default actions are equal.
+#[derive(Debug, PartialEq, thiserror::Error, displaydoc::Display)]
+pub enum CompilationError {
+    /// `filter_action` and `default_action` are equal.
     IdenticalActions,
-    /// Error from the SeccompFilter.
-    SeccompFilter(SeccompFilterError),
-    /// Invalid syscall name for the given arch.
+    /// {0}
+    Filter(#[from] FilterError),
+    /// Invalid syscall name: {0} for given arch: {1:?}.
     SyscallName(String, TargetArch),
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::Error::*;
-
-        match *self {
-            IdenticalActions => write!(f, "`filter_action` and `default_action` are equal."),
-            SeccompFilter(ref err) => write!(f, "{}", err),
-            SyscallName(ref syscall_name, ref arch) => write!(
-                f,
-                "Invalid syscall name: {} for given arch: {:?}.",
-                syscall_name, arch
-            ),
-        }
-    }
-}
-
 /// Deserializable object that represents the Json filter file.
-pub(crate) struct JsonFile(pub HashMap<String, Filter>);
+#[derive(Debug)]
+pub struct JsonFile(pub BTreeMap<String, Filter>);
 
 // Implement a custom deserializer, that returns an error for duplicate thread keys.
 impl<'de> Deserialize<'de> for JsonFile {
@@ -69,10 +52,11 @@ impl<'de> Deserialize<'de> for JsonFile {
     where
         D: de::Deserializer<'de>,
     {
+        #[derive(Debug)]
         struct JsonFileVisitor;
 
         impl<'d> Visitor<'d> for JsonFileVisitor {
-            type Value = HashMap<String, Filter>;
+            type Value = BTreeMap<String, Filter>;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> result::Result<(), fmt::Error> {
                 f.write_str("a map of filters")
@@ -82,7 +66,7 @@ impl<'de> Deserialize<'de> for JsonFile {
             where
                 M: MapAccess<'d>,
             {
-                let mut values = Self::Value::with_capacity(access.size_hint().unwrap_or(0));
+                let mut values = Self::Value::new();
 
                 while let Some((key, value)) = access.next_entry()? {
                     if values.insert(key, value).is_some() {
@@ -100,7 +84,7 @@ impl<'de> Deserialize<'de> for JsonFile {
 /// Deserializable object representing a syscall rule.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct SyscallRule {
+pub struct SyscallRule {
     /// Name of the syscall.
     syscall: String,
     /// Rule conditions.
@@ -112,14 +96,14 @@ pub(crate) struct SyscallRule {
 
 impl SyscallRule {
     /// Perform semantic checks after deserialization.
-    fn validate(&self) -> Result<()> {
+    fn validate(&self) -> Result<(), CompilationError> {
         // Validate all `SeccompCondition`s.
         if let Some(conditions) = self.conditions.as_ref() {
             return conditions
                 .iter()
                 .filter_map(|cond| cond.validate().err())
                 .next()
-                .map_or(Ok(()), |err| Err(Error::SeccompFilter(err)));
+                .map_or(Ok(()), |err| Err(CompilationError::Filter(err)));
         }
 
         Ok(())
@@ -129,7 +113,7 @@ impl SyscallRule {
 /// Deserializable seccomp filter. Refers to one thread category.
 #[derive(Deserialize, PartialEq, Debug, Clone)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct Filter {
+pub struct Filter {
     /// Default action if no rules match. e.g. `Kill` for an AllowList.
     default_action: SeccompAction,
     /// Default action if a rule matches. e.g. `Allow` for an AllowList.
@@ -140,10 +124,10 @@ pub(crate) struct Filter {
 
 impl Filter {
     /// Perform semantic checks after deserialization.
-    fn validate(&self) -> Result<()> {
+    fn validate(&self) -> Result<(), CompilationError> {
         // Doesn't make sense to have equal default and on-match actions.
         if self.default_action == self.filter_action {
-            return Err(Error::IdenticalActions);
+            return Err(CompilationError::IdenticalActions);
         }
 
         // Validate all `SyscallRule`s.
@@ -158,7 +142,8 @@ impl Filter {
 /// Object responsible for compiling [`Filter`](struct.Filter.html)s into
 /// [`BpfProgram`](../common/type.BpfProgram.html)s.
 /// Uses the [`SeccompFilter`](../backend/struct.SeccompFilter.html) interface as an IR language.
-pub(crate) struct Compiler {
+#[derive(Debug)]
+pub struct Compiler {
     /// Target architecture. Can be different from the current `target_arch`.
     arch: TargetArch,
     /// Target-specific syscall table.
@@ -175,7 +160,7 @@ impl Compiler {
     }
 
     /// Perform semantic checks after deserialization.
-    fn validate_filters(&self, filters: &HashMap<String, Filter>) -> Result<()> {
+    fn validate_filters(&self, filters: &BTreeMap<String, Filter>) -> Result<(), CompilationError> {
         // Validate all `Filter`s.
         filters
             .iter()
@@ -187,11 +172,11 @@ impl Compiler {
     /// Main compilation function.
     pub fn compile_blob(
         &self,
-        filters: HashMap<String, Filter>,
+        filters: BTreeMap<String, Filter>,
         is_basic: bool,
-    ) -> Result<HashMap<String, BpfProgram>> {
+    ) -> Result<BTreeMap<String, BpfProgram>, CompilationError> {
         self.validate_filters(&filters)?;
-        let mut bpf_map: HashMap<String, BpfProgram> = HashMap::new();
+        let mut bpf_map: BTreeMap<String, BpfProgram> = BTreeMap::new();
 
         for (thread_name, filter) in filters.into_iter() {
             if is_basic {
@@ -207,7 +192,7 @@ impl Compiler {
     }
 
     /// Transforms the deserialized `Filter` into a `SeccompFilter` (IR language).
-    fn make_seccomp_filter(&self, filter: Filter) -> Result<SeccompFilter> {
+    fn make_seccomp_filter(&self, filter: Filter) -> Result<SeccompFilter, CompilationError> {
         let mut rule_map: SeccompRuleMap = SeccompRuleMap::new();
         let filter_action = &filter.filter_action;
 
@@ -217,7 +202,7 @@ impl Compiler {
             let syscall_nr = self
                 .syscall_table
                 .get_syscall_nr(&syscall_name)
-                .ok_or_else(|| Error::SyscallName(syscall_name.clone(), self.arch))?;
+                .ok_or_else(|| CompilationError::SyscallName(syscall_name.clone(), self.arch))?;
             let rule_accumulator = rule_map.entry(syscall_nr).or_insert_with(Vec::new);
 
             match syscall_rule.conditions {
@@ -227,13 +212,13 @@ impl Compiler {
         }
 
         SeccompFilter::new(rule_map, filter.default_action, self.arch.into())
-            .map_err(Error::SeccompFilter)
+            .map_err(CompilationError::Filter)
     }
 
     /// Transforms the deserialized `Filter` into a basic `SeccompFilter` (IR language).
     /// This filter will drop any argument checks and any rule-level action.
     /// All rules will trigger the filter-level `filter_action`.
-    fn make_basic_seccomp_filter(&self, filter: Filter) -> Result<SeccompFilter> {
+    fn make_basic_seccomp_filter(&self, filter: Filter) -> Result<SeccompFilter, CompilationError> {
         let mut rule_map: SeccompRuleMap = SeccompRuleMap::new();
         let filter_action = &filter.filter_action;
 
@@ -244,7 +229,7 @@ impl Compiler {
             let syscall_nr = self
                 .syscall_table
                 .get_syscall_nr(&syscall_name)
-                .ok_or_else(|| Error::SyscallName(syscall_name.clone(), self.arch))?;
+                .ok_or_else(|| CompilationError::SyscallName(syscall_name.clone(), self.arch))?;
 
             // If there is already an entry for this syscall, do nothing.
             // Otherwise, insert an empty rule that triggers the filter_action.
@@ -254,22 +239,22 @@ impl Compiler {
         }
 
         SeccompFilter::new(rule_map, filter.default_action, self.arch.into())
-            .map_err(Error::SeccompFilter)
+            .map_err(CompilationError::Filter)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::convert::TryInto;
     use std::env::consts::ARCH;
 
-    use super::{Compiler, Error, Filter, SyscallRule};
+    use super::{CompilationError, Compiler, Filter, SyscallRule};
     use crate::backend::SeccompCmpArgLen::*;
     use crate::backend::SeccompCmpOp::*;
     use crate::backend::{
-        Error as SeccompFilterError, SeccompAction, SeccompCondition as Cond, SeccompFilter,
-        SeccompRule, TargetArch,
+        FilterError, SeccompAction, SeccompCondition as Cond, SeccompFilter, SeccompRule,
+        TargetArch,
     };
 
     impl Filter {
@@ -462,7 +447,7 @@ mod tests {
         let compiler = Compiler::new(ARCH.try_into().unwrap());
         // Test with malformed filters.
 
-        let mut wrong_syscall_name_filters = HashMap::new();
+        let mut wrong_syscall_name_filters = BTreeMap::new();
         wrong_syscall_name_filters.insert(
             "T1".to_string(),
             Filter::new(
@@ -474,13 +459,13 @@ mod tests {
 
         assert_eq!(
             compiler.compile_blob(wrong_syscall_name_filters, false),
-            Err(Error::SyscallName(
+            Err(CompilationError::SyscallName(
                 "wrong_syscall".to_string(),
                 compiler.arch
             ))
         );
 
-        let mut identical_action_filters = HashMap::new();
+        let mut identical_action_filters = BTreeMap::new();
         identical_action_filters.insert(
             "T1".to_string(),
             Filter::new(SeccompAction::Allow, SeccompAction::Allow, vec![]),
@@ -488,11 +473,11 @@ mod tests {
 
         assert_eq!(
             compiler.compile_blob(identical_action_filters, false),
-            Err(Error::IdenticalActions)
+            Err(CompilationError::IdenticalActions)
         );
 
         // Test with correct filters.
-        let mut correct_filters = HashMap::new();
+        let mut correct_filters = BTreeMap::new();
         correct_filters.insert(
             "Thread1".to_string(),
             Filter::new(
@@ -531,20 +516,20 @@ mod tests {
     #[test]
     fn test_error_messages() {
         assert_eq!(
-            format!("{}", Error::IdenticalActions),
+            format!("{}", CompilationError::IdenticalActions),
             "`filter_action` and `default_action` are equal."
         );
         assert_eq!(
             format!(
                 "{}",
-                Error::SeccompFilter(SeccompFilterError::InvalidArgumentNumber)
+                CompilationError::Filter(FilterError::InvalidArgumentNumber)
             ),
             "The seccomp rule contains an invalid argument number."
         );
         assert_eq!(
             format!(
                 "{}",
-                Error::SyscallName("asdsad".to_string(), TargetArch::x86_64)
+                CompilationError::SyscallName("asdsad".to_string(), TargetArch::x86_64)
             ),
             format!(
                 "Invalid syscall name: {} for given arch: {}.",

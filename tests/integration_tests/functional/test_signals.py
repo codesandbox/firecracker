@@ -4,12 +4,12 @@
 
 import json
 import os
-from signal import SIGBUS, SIGSEGV, SIGXFSZ, SIGXCPU, SIGPIPE, SIGHUP, SIGILL, SIGSYS
-from time import sleep
 import resource as res
+from signal import SIGBUS, SIGHUP, SIGILL, SIGPIPE, SIGSEGV, SIGSYS, SIGXCPU, SIGXFSZ
+from time import sleep
+
 import pytest
 
-import host_tools.network as net_tools
 from framework import utils
 
 signum_str = {
@@ -30,8 +30,6 @@ signum_str = {
 def test_generic_signal_handler(test_microvm_with_api, signum):
     """
     Test signal handling for all handled signals.
-
-    @type: functional
     """
     microvm = test_microvm_with_api
     microvm.spawn()
@@ -40,22 +38,12 @@ def test_generic_signal_handler(test_microvm_with_api, signum):
     microvm.memory_monitor = None
 
     microvm.basic_config()
-
-    # Configure metrics based on a file.
-    metrics_path = os.path.join(microvm.path, "metrics_fifo")
-    utils.run_cmd("touch {}".format(metrics_path))
-    response = microvm.metrics.put(
-        metrics_path=microvm.create_jailed_resource(metrics_path)
-    )
-    assert microvm.api_session.is_status_no_content(response.status_code)
-
     microvm.start()
     firecracker_pid = int(microvm.jailer_clone_pid)
     sleep(0.5)
 
-    metrics_jail_path = os.path.join(microvm.chroot(), metrics_path)
+    metrics_jail_path = microvm.metrics_file
     metrics_fd = open(metrics_jail_path, encoding="utf-8")
-
     line_metrics = metrics_fd.readlines()
     assert len(line_metrics) == 1
 
@@ -65,8 +53,7 @@ def test_generic_signal_handler(test_microvm_with_api, signum):
         msg = "Received signal 13"
         # Flush metrics to file, so we can see the SIGPIPE at bottom assert.
         # This is going to fail if process has exited.
-        response = microvm.actions.put(action_type="FlushMetrics")
-        assert microvm.api_session.is_status_no_content(response.status_code)
+        microvm.api.actions.put(action_type="FlushMetrics")
     else:
         microvm.expect_kill_by_signal = True
         # Ensure that the process was terminated.
@@ -80,13 +67,11 @@ def test_generic_signal_handler(test_microvm_with_api, signum):
         assert metric_line["signals"][signum_str[signum]] == 1
 
 
-def test_sigxfsz_handler(test_microvm_with_api):
+def test_sigxfsz_handler(uvm_plain_rw):
     """
     Test intercepting and handling SIGXFSZ.
-
-    @type: functional
     """
-    microvm = test_microvm_with_api
+    microvm = uvm_plain_rw
     microvm.spawn()
 
     # We don't need to monitor the memory for this test.
@@ -96,18 +81,9 @@ def test_sigxfsz_handler(test_microvm_with_api):
     # get a SIGXFSZ. We'll instead get an errno 27 File too large as the
     # completed entry status code.
     microvm.basic_config(rootfs_io_engine="Sync")
-
-    # Configure metrics based on a file.
-    metrics_path = os.path.join(microvm.path, "metrics_fifo")
-    utils.run_cmd("touch {}".format(metrics_path))
-    response = microvm.metrics.put(
-        metrics_path=microvm.create_jailed_resource(metrics_path)
-    )
-    assert microvm.api_session.is_status_no_content(response.status_code)
-
     microvm.start()
 
-    metrics_jail_path = os.path.join(microvm.jailer.chroot_path(), metrics_path)
+    metrics_jail_path = microvm.metrics_file
     metrics_fd = open(metrics_jail_path, encoding="utf-8")
     line_metrics = metrics_fd.readlines()
     assert len(line_metrics) == 1
@@ -134,11 +110,9 @@ def test_sigxfsz_handler(test_microvm_with_api):
     assert metric_line["signals"]["sigxfsz"] == 1
 
 
-def test_handled_signals(test_microvm_with_api, network_config):
+def test_handled_signals(test_microvm_with_api):
     """
     Test that handled signals don't kill the microVM.
-
-    @type: functional
     """
     microvm = test_microvm_with_api
     microvm.spawn()
@@ -147,20 +121,16 @@ def test_handled_signals(test_microvm_with_api, network_config):
     microvm.memory_monitor = None
 
     microvm.basic_config(vcpu_count=2)
-
-    # Configure a network interface.
-    _tap, _, _ = microvm.ssh_network_config(network_config, "1")
-
+    microvm.add_net_iface()
     microvm.start()
     firecracker_pid = int(microvm.jailer_clone_pid)
 
     # Open a SSH connection to validate the microVM stays alive.
-    ssh_connection = net_tools.SSHConnection(microvm.ssh_config)
     # Just validate a simple command: `nproc`
     cmd = "nproc"
-    _, stdout, stderr = ssh_connection.execute_command(cmd)
-    assert stderr.read() == ""
-    assert int(stdout.read()) == 2
+    _, stdout, stderr = microvm.ssh.run(cmd)
+    assert stderr == ""
+    assert int(stdout) == 2
 
     # We have a handler installed for this signal.
     # The 35 is the SIGRTMIN for musl libc.
@@ -169,6 +139,6 @@ def test_handled_signals(test_microvm_with_api, network_config):
     os.kill(firecracker_pid, 35)
 
     # Validate the microVM is still up and running.
-    _, stdout, stderr = ssh_connection.execute_command(cmd)
-    assert stderr.read() == ""
-    assert int(stdout.read()) == 2
+    _, stdout, stderr = microvm.ssh.run(cmd)
+    assert stderr == ""
+    assert int(stdout) == 2

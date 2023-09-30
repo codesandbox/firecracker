@@ -2,11 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Basic tests scenarios for snapshot save/restore."""
 
-import os
-from framework.builder import MicrovmBuilder
-from framework.resources import DescribeInstance
-import host_tools.logging as log_tools
-import host_tools.network as net_tools  # pylint: disable=import-error
+import pytest
 
 
 def verify_net_emulation_paused(metrics):
@@ -29,142 +25,113 @@ def verify_net_emulation_paused(metrics):
     print(net_metrics)
 
 
-def test_pause_resume(bin_cloner_path):
+def test_pause_resume(uvm_nano):
     """
     Test scenario: boot/pause/resume.
-
-    @type: functional
     """
-    builder = MicrovmBuilder(bin_cloner_path)
-    vm_instance = builder.build_vm_nano()
-    microvm = vm_instance.vm
+    microvm = uvm_nano
+    microvm.add_net_iface()
 
     # Pausing the microVM before being started is not allowed.
-    response = microvm.vm.patch(state="Paused")
-    assert microvm.api_session.is_status_bad_request(response.status_code)
+    with pytest.raises(RuntimeError):
+        microvm.api.vm.patch(state="Paused")
 
     # Resuming the microVM before being started is also not allowed.
-    response = microvm.vm.patch(state="Resumed")
-    assert microvm.api_session.is_status_bad_request(response.status_code)
+    with pytest.raises(RuntimeError):
+        microvm.api.vm.patch(state="Resumed")
 
-    # Configure metrics system and start microVM.
-    metrics_fifo_path = os.path.join(microvm.path, "metrics_fifo")
-    metrics_fifo = log_tools.Fifo(metrics_fifo_path)
-    response = microvm.metrics.put(
-        metrics_path=microvm.create_jailed_resource(metrics_fifo.path)
-    )
-    assert microvm.api_session.is_status_no_content(response.status_code)
     microvm.start()
 
-    ssh_connection = net_tools.SSHConnection(microvm.ssh_config)
-
     # Verify guest is active.
-    exit_code, _, _ = ssh_connection.execute_command("ls")
+    exit_code, _, _ = microvm.ssh.run("ls")
     assert exit_code == 0
 
     # Pausing the microVM after it's been started is successful.
-    response = microvm.vm.patch(state="Paused")
-    assert microvm.api_session.is_status_no_content(response.status_code)
+    microvm.api.vm.patch(state="Paused")
 
     # Flush and reset metrics as they contain pre-pause data.
-    microvm.flush_metrics(metrics_fifo)
+    microvm.flush_metrics()
 
     # Verify guest is no longer active.
-    exit_code, _, _ = ssh_connection.execute_command("ls")
+    exit_code, _, _ = microvm.ssh.run("ls")
     assert exit_code != 0
 
     # Verify emulation was indeed paused and no events from either
     # guest or host side were handled.
-    verify_net_emulation_paused(microvm.flush_metrics(metrics_fifo))
+    verify_net_emulation_paused(microvm.flush_metrics())
 
     # Verify guest is no longer active.
-    exit_code, _, _ = ssh_connection.execute_command("ls")
+    exit_code, _, _ = microvm.ssh.run("ls")
     assert exit_code != 0
 
     # Pausing the microVM when it is already `Paused` is allowed
     # (microVM remains in `Paused` state).
-    response = microvm.vm.patch(state="Paused")
-    assert microvm.api_session.is_status_no_content(response.status_code)
+    microvm.api.vm.patch(state="Paused")
 
     # Resuming the microVM is successful.
-    response = microvm.vm.patch(state="Resumed")
-    assert microvm.api_session.is_status_no_content(response.status_code)
+    microvm.api.vm.patch(state="Resumed")
 
     # Verify guest is active again.
-    exit_code, _, _ = ssh_connection.execute_command("ls")
+    exit_code, _, _ = microvm.ssh.run("ls")
     assert exit_code == 0
 
     # Resuming the microVM when it is already `Resumed` is allowed
     # (microVM remains in the running state).
-    response = microvm.vm.patch(state="Resumed")
-    assert microvm.api_session.is_status_no_content(response.status_code)
+    microvm.api.vm.patch(state="Resumed")
 
     # Verify guest is still active.
-    exit_code, _, _ = ssh_connection.execute_command("ls")
+    exit_code, _, _ = microvm.ssh.run("ls")
     assert exit_code == 0
 
     microvm.kill()
 
 
-def test_describe_instance(bin_cloner_path):
+def test_describe_instance(uvm_nano):
     """
     Test scenario: DescribeInstance different states.
-
-    @type: functional
     """
-    builder = MicrovmBuilder(bin_cloner_path)
-    vm_instance = builder.build_vm_nano()
-    microvm = vm_instance.vm
-    descr_inst = DescribeInstance(microvm.api_socket, microvm.api_session)
+    microvm = uvm_nano
 
     # Check MicroVM state is "Not started"
-    response = descr_inst.get()
-    assert microvm.api_session.is_status_ok(response.status_code)
+    response = microvm.api.describe.get()
     assert "Not started" in response.text
 
     # Start MicroVM
     microvm.start()
 
     # Check MicroVM state is "Running"
-    response = descr_inst.get()
-    assert microvm.api_session.is_status_ok(response.status_code)
+    response = microvm.api.describe.get()
     assert "Running" in response.text
 
     # Pause MicroVM
-    response = microvm.vm.patch(state="Paused")
-    assert microvm.api_session.is_status_no_content(response.status_code)
+    microvm.api.vm.patch(state="Paused")
 
     # Check MicroVM state is "Paused"
-    response = descr_inst.get()
-    assert microvm.api_session.is_status_ok(response.status_code)
+    response = microvm.api.describe.get()
     assert "Paused" in response.text
 
     # Resume MicroVM
-    response = microvm.vm.patch(state="Resumed")
-    assert microvm.api_session.is_status_no_content(response.status_code)
+    response = microvm.api.vm.patch(state="Resumed")
 
     # Check MicroVM state is "Running" after VM is resumed
-    response = descr_inst.get()
-    assert microvm.api_session.is_status_ok(response.status_code)
+    response = microvm.api.describe.get()
     assert "Running" in response.text
 
     microvm.kill()
 
 
-def test_pause_resume_preboot(bin_cloner_path):
+def test_pause_resume_preboot(uvm_nano):
     """
     Test pause/resume operations are not allowed pre-boot.
-
-    @type: negative
     """
-    builder = MicrovmBuilder(bin_cloner_path)
-    vm_instance = builder.build_vm_nano()
-    basevm = vm_instance.vm
+    basevm = uvm_nano
+
+    expected_err = "not supported before starting the microVM"
 
     # Try to pause microvm when not running, it must fail.
-    response = basevm.vm.patch(state="Paused")
-    assert "not supported before starting the microVM" in response.text
+    with pytest.raises(RuntimeError, match=expected_err):
+        basevm.api.vm.patch(state="Paused")
 
     # Try to resume microvm when not running, it must fail.
-    response = basevm.vm.patch(state="Resumed")
-    assert "not supported before starting the microVM" in response.text
+    with pytest.raises(RuntimeError, match=expected_err):
+        basevm.api.vm.patch(state="Resumed")

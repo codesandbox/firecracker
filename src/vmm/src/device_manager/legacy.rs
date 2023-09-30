@@ -6,61 +6,37 @@
 // found in the THIRD-PARTY file.
 #![cfg(target_arch = "x86_64")]
 
-use std::fmt;
+use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use devices::legacy::{EventFdTrigger, SerialDevice, SerialEventsWrapper};
 use kvm_ioctls::VmFd;
 use libc::EFD_NONBLOCK;
-use logger::METRICS;
 use utils::eventfd::EventFd;
 use vm_superio::Serial;
 
+use crate::devices::bus::BusDevice;
+use crate::devices::legacy::serial::SerialOut;
+use crate::devices::legacy::{EventFdTrigger, SerialDevice, SerialEventsWrapper};
+
 /// Errors corresponding to the `PortIODeviceManager`.
-#[derive(Debug, derive_more::From)]
-pub enum Error {
-    /// Cannot add legacy device to Bus.
-    BusError(devices::BusError),
-    /// Cannot create EventFd.
+#[derive(Debug, derive_more::From, thiserror::Error, displaydoc::Display)]
+pub enum LegacyDeviceError {
+    /// Failed to add legacy device to Bus: {0}
+    BusError(crate::devices::BusError),
+    /// Failed to create EventFd: {0}
     EventFd(std::io::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::Error::*;
-
-        match *self {
-            BusError(ref err) => write!(f, "Failed to add legacy device to Bus: {}", err),
-            EventFd(ref err) => write!(f, "Failed to create EventFd: {}", err),
-        }
-    }
-}
-
-type Result<T> = ::std::result::Result<T, Error>;
-
-fn create_serial(com_event: EventFdTrigger) -> Result<Arc<Mutex<SerialDevice>>> {
-    let serial_device = Arc::new(Mutex::new(SerialDevice {
-        serial: Serial::with_events(
-            com_event.try_clone()?,
-            SerialEventsWrapper {
-                metrics: METRICS.uart.clone(),
-                buffer_ready_event_fd: None,
-            },
-            Box::new(std::io::sink()),
-        ),
-        input: None,
-    }));
-
-    Ok(serial_device)
 }
 
 /// The `PortIODeviceManager` is a wrapper that is used for registering legacy devices
 /// on an I/O Bus. It currently manages the uart and i8042 devices.
 /// The `LegacyDeviceManger` should be initialized only by using the constructor.
+#[derive(Debug)]
 pub struct PortIODeviceManager {
-    pub io_bus: devices::Bus,
-    pub stdio_serial: Arc<Mutex<SerialDevice>>,
-    pub i8042: Arc<Mutex<devices::legacy::I8042Device>>,
+    pub io_bus: crate::devices::Bus,
+    // BusDevice::Serial
+    pub stdio_serial: Arc<Mutex<BusDevice>>,
+    // BusDevice::I8042Device
+    pub i8042: Arc<Mutex<BusDevice>>,
 
     // Communication event on ports 1 & 3.
     pub com_evt_1_3: EventFdTrigger,
@@ -94,20 +70,25 @@ impl PortIODeviceManager {
     const I8042_KDB_DATA_REGISTER_SIZE: u64 = 0x5;
 
     /// Create a new DeviceManager handling legacy devices (uart, i8042).
-    pub fn new(serial: Arc<Mutex<SerialDevice>>, i8042_reset_evfd: EventFd) -> Result<Self> {
-        let io_bus = devices::Bus::new();
+    pub fn new(
+        serial: Arc<Mutex<BusDevice>>,
+        i8042_reset_evfd: EventFd,
+    ) -> Result<Self, LegacyDeviceError> {
+        debug_assert!(matches!(*serial.lock().unwrap(), BusDevice::Serial(_)));
+        let io_bus = crate::devices::Bus::new();
         let com_evt_1_3 = serial
             .lock()
             .expect("Poisoned lock")
+            .serial_mut()
+            .unwrap()
             .serial
             .interrupt_evt()
             .try_clone()?;
         let com_evt_2_4 = EventFdTrigger::new(EventFd::new(EFD_NONBLOCK)?);
         let kbd_evt = EventFd::new(libc::EFD_NONBLOCK)?;
 
-        let i8042 = Arc::new(Mutex::new(devices::legacy::I8042Device::new(
-            i8042_reset_evfd,
-            kbd_evt.try_clone()?,
+        let i8042 = Arc::new(Mutex::new(BusDevice::I8042Device(
+            crate::devices::legacy::I8042Device::new(i8042_reset_evfd, kbd_evt.try_clone()?),
         )));
 
         Ok(PortIODeviceManager {
@@ -121,9 +102,27 @@ impl PortIODeviceManager {
     }
 
     /// Register supported legacy devices.
-    pub fn register_devices(&mut self, vm_fd: &VmFd) -> Result<()> {
-        let serial_2_4 = create_serial(self.com_evt_2_4.try_clone()?)?;
-        let serial_1_3 = create_serial(self.com_evt_1_3.try_clone()?)?;
+    pub fn register_devices(&mut self, vm_fd: &VmFd) -> Result<(), LegacyDeviceError> {
+        let serial_2_4 = Arc::new(Mutex::new(BusDevice::Serial(SerialDevice {
+            serial: Serial::with_events(
+                self.com_evt_2_4.try_clone()?.try_clone()?,
+                SerialEventsWrapper {
+                    buffer_ready_event_fd: None,
+                },
+                SerialOut::Sink(std::io::sink()),
+            ),
+            input: None,
+        })));
+        let serial_1_3 = Arc::new(Mutex::new(BusDevice::Serial(SerialDevice {
+            serial: Serial::with_events(
+                self.com_evt_1_3.try_clone()?.try_clone()?,
+                SerialEventsWrapper {
+                    buffer_ready_event_fd: None,
+                },
+                SerialOut::Sink(std::io::sink()),
+            ),
+            input: None,
+        })));
         self.io_bus.insert(
             self.stdio_serial.clone(),
             Self::SERIAL_PORT_ADDRESSES[0],
@@ -135,7 +134,7 @@ impl PortIODeviceManager {
             Self::SERIAL_PORT_SIZE,
         )?;
         self.io_bus.insert(
-            serial_1_3.clone(),
+            serial_1_3,
             Self::SERIAL_PORT_ADDRESSES[2],
             Self::SERIAL_PORT_SIZE,
         )?;
@@ -152,13 +151,19 @@ impl PortIODeviceManager {
 
         vm_fd
             .register_irqfd(&self.com_evt_1_3, Self::COM_EVT_1_3_GSI)
-            .map_err(|e| Error::EventFd(std::io::Error::from_raw_os_error(e.errno())))?;
+            .map_err(|e| {
+                LegacyDeviceError::EventFd(std::io::Error::from_raw_os_error(e.errno()))
+            })?;
         vm_fd
             .register_irqfd(&self.com_evt_2_4, Self::COM_EVT_2_4_GSI)
-            .map_err(|e| Error::EventFd(std::io::Error::from_raw_os_error(e.errno())))?;
+            .map_err(|e| {
+                LegacyDeviceError::EventFd(std::io::Error::from_raw_os_error(e.errno()))
+            })?;
         vm_fd
             .register_irqfd(&self.kbd_evt, Self::KBD_EVT_GSI)
-            .map_err(|e| Error::EventFd(std::io::Error::from_raw_os_error(e.errno())))?;
+            .map_err(|e| {
+                LegacyDeviceError::EventFd(std::io::Error::from_raw_os_error(e.errno()))
+            })?;
 
         Ok(())
     }
@@ -166,40 +171,35 @@ impl PortIODeviceManager {
 
 #[cfg(test)]
 mod tests {
-    use vm_memory::GuestAddress;
+    use utils::vm_memory::GuestAddress;
 
     use super::*;
+    use crate::Vm;
 
     #[test]
     fn test_register_legacy_devices() {
-        let guest_mem =
-            vm_memory::test_utils::create_anon_guest_memory(&[(GuestAddress(0x0), 0x1000)], false)
-                .unwrap();
-        let mut vm = crate::builder::setup_kvm_vm(&guest_mem, false).unwrap();
+        let guest_mem = utils::vm_memory::test_utils::create_anon_guest_memory(
+            &[(GuestAddress(0x0), 0x1000)],
+            false,
+        )
+        .unwrap();
+        let mut vm = Vm::new(vec![]).unwrap();
+        vm.memory_init(&guest_mem, false).unwrap();
         crate::builder::setup_interrupt_controller(&mut vm).unwrap();
         let mut ldm = PortIODeviceManager::new(
-            create_serial(EventFdTrigger::new(EventFd::new(EFD_NONBLOCK).unwrap())).unwrap(),
+            Arc::new(Mutex::new(BusDevice::Serial(SerialDevice {
+                serial: Serial::with_events(
+                    EventFdTrigger::new(EventFd::new(EFD_NONBLOCK).unwrap()),
+                    SerialEventsWrapper {
+                        buffer_ready_event_fd: None,
+                    },
+                    SerialOut::Sink(std::io::sink()),
+                ),
+                input: None,
+            }))),
             EventFd::new(libc::EFD_NONBLOCK).unwrap(),
         )
         .unwrap();
         assert!(ldm.register_devices(vm.fd()).is_ok());
-    }
-
-    #[test]
-    fn test_debug_error() {
-        assert_eq!(
-            format!("{}", Error::BusError(devices::BusError::Overlap)),
-            format!(
-                "Failed to add legacy device to Bus: {}",
-                devices::BusError::Overlap
-            )
-        );
-        assert_eq!(
-            format!("{}", Error::EventFd(std::io::Error::from_raw_os_error(1))),
-            format!(
-                "Failed to create EventFd: {}",
-                std::io::Error::from_raw_os_error(1)
-            )
-        );
     }
 }

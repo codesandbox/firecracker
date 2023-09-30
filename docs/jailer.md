@@ -32,8 +32,8 @@ jailer --id <id> \
 - `id` is the unique VM identification string, which may contain alphanumeric
   characters and hyphens. The maximum `id` length is currently 64 characters.
 - `exec_file` is the path to the Firecracker binary that will be exec-ed by the
-  jailer. The user can provide a path to any binary, but the interaction with
-  the jailer is mostly Firecracker specific.
+  jailer. The filename must include the string `firecracker`. This is enforced
+  because the interaction with the jailer is Firecracker specific.
 - `uid` and `gid` are the uid and gid the jailer switches to as it execs the
   target binary.
 - `parent-cgroup` is used to allow the placement of microvm cgroups in custom
@@ -52,7 +52,7 @@ jailer --id <id> \
   Supported options are "1" for cgroup-v1 and "2" for cgroup-v2.
 - `cgroup` cgroups can be passed to the jailer to let it set the values
   when the microVM process is spawned. The `--cgroup` argument must follow this format:
-  `<cgroup_file>=<value>` (e.g cpuset.cpus=0). This argument can be used multiple
+  `<cgroup_file>=<value>` (e.g `cpuset.cpus=0`). This argument can be used multiple
   times to set multiple cgroups. This is useful to avoid providing privileged permissions
   to another process for setting the cgroups before or after the jailer is executed.
   The `--cgroup` flag can help as well to set Firecracker process cgroups
@@ -77,7 +77,7 @@ Here is an example on how to set multiple resource limits using this argument:
   --resource-limit fsize=250000000 --resource-limit no-file=1024
   ```
 
-- When present, the `--daemonize` flag causes the jailer to cal `setsid()` and
+- When present, the `--daemonize` flag causes the jailer to call `setsid()` and
   redirect all three standard I/O file descriptors to `/dev/null`.
 - When present, the `--new-pid-ns` flag causes the jailer to spawn the provided
   binary into a new PID namespace.
@@ -108,7 +108,8 @@ After starting, the Jailer goes through the following operations:
   for `/usr/bin/firecracker`). Nothing is done if the path already
   exists (it should not, since `id` is supposed to be unique).
 - Copy `exec_file` to
-  `<chroot_base>/<exec_file_name>/<id>/root/<exec_file_name>`.
+  `<chroot_base>/<exec_file_name>/<id>/root/<exec_file_name>`. This ensures the
+  new process will not share memory with any other Firecracker process.
 - Set resource bounds for current process and its children through
   `--resource-limit` argument, by calling `setrlimit()` system call with the
   specific resource argument. If no limits are provided, the jailer bounds

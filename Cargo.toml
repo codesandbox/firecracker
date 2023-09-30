@@ -1,6 +1,7 @@
 [workspace]
-members = ["src/firecracker", "src/jailer", "src/seccompiler", "src/rebase-snap"]
+members = ["src/cpu-template-helper", "src/firecracker", "src/jailer", "src/rebase-snap", "src/seccompiler", "src/snapshot-editor"]
 default-members = ["src/firecracker"]
+resolver = "2"
 
 [profile.dev]
 panic = "abort"
@@ -10,4 +11,4 @@ panic = "abort"
 lto = true
 
 [patch.crates-io]
-kvm-bindings = { git = "https://github.com/firecracker-microvm/kvm-bindings", tag = "v0.5.0-1", features = ["fam-wrappers"] }
+kvm-bindings = { git = "https://github.com/firecracker-microvm/kvm-bindings", tag = "v0.6.0-2", features = ["fam-wrappers"] }

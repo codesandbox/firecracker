@@ -4,41 +4,31 @@
 
 import concurrent
 import json
-import logging
 import os
-from enum import Enum
 import shutil
+from enum import Enum
+from pathlib import Path
+
 import pytest
 
-from conftest import _test_images_s3_bucket
-from framework.artifacts import ArtifactCollection, ArtifactSet
-from framework.builder import MicrovmBuilder
-from framework.matrix import TestContext, TestMatrix
-from framework.stats import core
+import framework.stats as st
+import host_tools.drive as drive_tools
 from framework.stats.baseline import Provider as BaselineProvider
 from framework.stats.metadata import DictProvider as DictMetadataProvider
 from framework.utils import (
+    CmdBuilder,
     get_cpu_percent,
     get_kernel_version,
-    is_io_uring_supported,
-    CmdBuilder,
-    DictQuery,
     run_cmd,
+    summarize_cpu_percent,
 )
-from framework.utils_cpuid import get_cpu_model_name, get_instance_type
-import host_tools.drive as drive_tools
-import host_tools.network as net_tools  # pylint: disable=import-error
-import framework.stats as st
 from integration_tests.performance.configs import defs
-from integration_tests.performance.utils import handle_failure
 
 TEST_ID = "block_performance"
 kernel_version = get_kernel_version(level=1)
 CONFIG_NAME_REL = "test_{}_config_{}.json".format(TEST_ID, kernel_version)
-CONFIG_NAME_ABS = os.path.join(defs.CFG_LOCATION, CONFIG_NAME_REL)
-CONFIG = json.load(open(CONFIG_NAME_ABS, encoding="utf-8"))
+CONFIG_NAME_ABS = defs.CFG_LOCATION / CONFIG_NAME_REL
 
-DEBUG = False
 FIO = "fio"
 
 # Measurements tags.
@@ -46,30 +36,32 @@ CPU_UTILIZATION_VMM = "cpu_utilization_vmm"
 CPU_UTILIZATION_VMM_SAMPLES_TAG = "cpu_utilization_vmm_samples"
 CPU_UTILIZATION_VCPUS_TOTAL = "cpu_utilization_vcpus_total"
 
+# size of the block device used in the test, in MB
+BLOCK_DEVICE_SIZE_MB = 2048
+
+# How many fio workloads should be spawned per vcpu
+LOAD_FACTOR = 1
+
+# Time (in seconds) for which fio "warms up"
+WARMUP_SEC = 10
+
+# Time (in seconds) for which fio runs after warmup is done
+RUNTIME_SEC = 300
+
 
 # pylint: disable=R0903
 class BlockBaselinesProvider(BaselineProvider):
     """Implementation of a baseline provider for the block performance test."""
 
-    def __init__(self, env_id, fio_id):
+    def __init__(self, env_id, fio_id, raw_baselines):
         """Block baseline provider initialization."""
-        cpu_model_name = get_cpu_model_name()
-        baselines = list(
-            filter(
-                lambda cpu_baseline: cpu_baseline["model"] == cpu_model_name,
-                CONFIG["hosts"]["instances"][get_instance_type()]["cpus"],
-            )
-        )
-
-        super().__init__(DictQuery({}))
-        if len(baselines) > 0:
-            super().__init__(DictQuery(baselines[0]))
+        super().__init__(raw_baselines)
 
         self._tag = "baselines/{}/" + env_id + "/{}/" + fio_id
 
-    def get(self, ms_name: str, st_name: str) -> dict:
+    def get(self, metric_name: str, statistic_name: str) -> dict:
         """Return the baseline value corresponding to the key."""
-        key = self._tag.format(ms_name, st_name)
+        key = self._tag.format(metric_name, statistic_name)
         baseline = self._baselines.get(key)
         if baseline:
             target = baseline.get("target")
@@ -81,7 +73,7 @@ class BlockBaselinesProvider(BaselineProvider):
         return None
 
 
-def run_fio(env_id, basevm, ssh_conn, mode, bs):
+def run_fio(env_id, basevm, mode, bs):
     """Run a fio test in the specified mode with block size bs."""
     logs_path = f"{basevm.jailer.chroot_base_with_id()}/{env_id}/{mode}{bs}"
 
@@ -93,34 +85,37 @@ def run_fio(env_id, basevm, ssh_conn, mode, bs):
         .with_arg(f"--bs={bs}")
         .with_arg("--filename=/dev/vdb")
         .with_arg("--time_base=1")
-        .with_arg(f"--size={CONFIG['block_device_size']}M")
+        .with_arg(f"--size={BLOCK_DEVICE_SIZE_MB}M")
         .with_arg("--direct=1")
         .with_arg("--ioengine=libaio")
         .with_arg("--iodepth=32")
-        .with_arg(f"--ramp_time={CONFIG['omit']}")
-        .with_arg(f"--numjobs={CONFIG['load_factor'] * basevm.vcpus_count}")
+        .with_arg(f"--ramp_time={WARMUP_SEC}")
+        .with_arg(f"--numjobs={basevm.vcpus_count}")
+        # Set affinity of the entire fio process to a set of vCPUs equal in size to number of workers
+        .with_arg(
+            f"--cpus_allowed={','.join(str(i) for i in range(basevm.vcpus_count))}"
+        )
+        # Instruct fio to pin one worker per vcpu
+        .with_arg("--cpus_allowed_policy=split")
         .with_arg("--randrepeat=0")
-        .with_arg(f"--runtime={CONFIG['time']}")
-        .with_arg(f"--write_iops_log={mode}{bs}")
+        .with_arg(f"--runtime={RUNTIME_SEC}")
         .with_arg(f"--write_bw_log={mode}{bs}")
         .with_arg("--log_avg_msec=1000")
         .with_arg("--output-format=json+")
         .build()
     )
 
-    rc, _, stderr = ssh_conn.execute_command(
-        "echo 'none' > /sys/block/vdb/queue/scheduler"
-    )
-    assert rc == 0, stderr.read()
-    assert stderr.read() == ""
+    rc, _, stderr = basevm.ssh.run("echo 'none' > /sys/block/vdb/queue/scheduler")
+    assert rc == 0, stderr
+    assert stderr == ""
 
     # First, flush all guest cached data to host, then drop guest FS caches.
-    rc, _, stderr = ssh_conn.execute_command("sync")
-    assert rc == 0, stderr.read()
-    assert stderr.read() == ""
-    rc, _, stderr = ssh_conn.execute_command("echo 3 > /proc/sys/vm/drop_caches")
-    assert rc == 0, stderr.read()
-    assert stderr.read() == ""
+    rc, _, stderr = basevm.ssh.run("sync")
+    assert rc == 0, stderr
+    assert stderr == ""
+    rc, _, stderr = basevm.ssh.run("echo 3 > /proc/sys/vm/drop_caches")
+    assert rc == 0, stderr
+    assert stderr == ""
 
     # Then, flush all host cached data to hardware, also drop host FS caches.
     run_cmd("sync")
@@ -131,54 +126,25 @@ def run_fio(env_id, basevm, ssh_conn, mode, bs):
         cpu_load_future = executor.submit(
             get_cpu_percent,
             basevm.jailer_clone_pid,
-            CONFIG["time"],
-            omit=CONFIG["omit"],
+            RUNTIME_SEC,
+            omit=WARMUP_SEC,
         )
 
         # Print the fio command in the log and run it
-        rc, _, stderr = ssh_conn.execute_command(cmd)
-        assert rc == 0, stderr.read()
-        assert stderr.read() == ""
+        rc, _, stderr = basevm.ssh.run(f"cd /tmp; {cmd}")
+        assert rc == 0, stderr
+        assert stderr == ""
 
         if os.path.isdir(logs_path):
             shutil.rmtree(logs_path)
 
         os.makedirs(logs_path)
 
-        ssh_conn.scp_get_file("*.log", logs_path)
-        rc, _, stderr = ssh_conn.execute_command("rm *.log")
-        assert rc == 0, stderr.read()
+        basevm.ssh.scp_get("/tmp/*.log", logs_path)
+        rc, _, stderr = basevm.ssh.run("rm /tmp/*.log")
+        assert rc == 0, stderr
 
-        result = {}
-        cpu_load = cpu_load_future.result()
-        tag = "firecracker"
-        assert tag in cpu_load and len(cpu_load[tag]) == 1
-
-        data = list(cpu_load[tag].values())[0]
-        data_len = len(data)
-        assert data_len == CONFIG["time"]
-
-        result[CPU_UTILIZATION_VMM] = sum(data) / data_len
-        if DEBUG:
-            result[CPU_UTILIZATION_VMM_SAMPLES_TAG] = data
-
-        vcpus_util = 0
-        for vcpu in range(basevm.vcpus_count):
-            # We expect a single fc_vcpu thread tagged with
-            # f`fc_vcpu {vcpu}`.
-            tag = f"fc_vcpu {vcpu}"
-            assert tag in cpu_load and len(cpu_load[tag]) == 1
-            data = list(cpu_load[tag].values())[0]
-            data_len = len(data)
-
-            assert data_len == CONFIG["time"]
-            if DEBUG:
-                samples_tag = f"cpu_utilization_fc_vcpu_{vcpu}_samples"
-                result[samples_tag] = data
-            vcpus_util += sum(data) / data_len
-
-        result[CPU_UTILIZATION_VCPUS_TOTAL] = vcpus_util
-        return result
+        return cpu_load_future.result()
 
 
 class DataDirection(Enum):
@@ -213,15 +179,14 @@ def read_values(cons, numjobs, env_id, mode, bs, measurement, logs_path):
 
     for job_id in range(numjobs):
         file_path = (
-            f"{logs_path}/{env_id}/{mode}{bs}/{mode}"
-            f"{bs}_{measurement}.{job_id + 1}.log"
+            Path(logs_path)
+            / env_id
+            / f"{mode}{bs}"
+            / f"{mode}{bs}_{measurement}.{job_id + 1}.log"
         )
-        file = open(file_path, encoding="utf-8")
-        lines = file.readlines()
+        lines = file_path.read_text(encoding="utf-8").splitlines()
 
         direction_count = 1
-        if mode.endswith("readwrite") or mode.endswith("rw"):
-            direction_count = 2
 
         for idx in range(0, len(lines), direction_count):
             value_idx = idx // direction_count
@@ -237,196 +202,116 @@ def read_values(cons, numjobs, env_id, mode, bs, measurement, logs_path):
                     values[measurement_id][value_idx] = []
                 values[measurement_id][value_idx].append(int(data[1].strip()))
 
-    for (measurement_id, value_indexes) in values.items():
-        for idx in value_indexes:
+    for measurement_id, data in values.items():
+        for time in data:
             # Discard data points which were not measured by all jobs.
-            if len(value_indexes[idx]) != numjobs:
+            if len(data[time]) != numjobs:
                 continue
 
-            value = sum(value_indexes[idx])
-            if DEBUG:
-                cons.consume_custom(measurement_id, value)
+            yield from [
+                (f"{measurement_id}_{vcpu}", throughput, "Megabits/Second")
+                for vcpu, throughput in enumerate(data[time])
+            ]
+
+            value = sum(data[time])
             cons.consume_data(measurement_id, value)
 
 
-def consume_fio_output(cons, result, numjobs, mode, bs, env_id, logs_path):
+def consume_fio_output(cons, cpu_load, numjobs, mode, bs, env_id, logs_path):
     """Consumer function."""
-    cpu_utilization_vmm = result[CPU_UTILIZATION_VMM]
-    cpu_utilization_vcpus = result[CPU_UTILIZATION_VCPUS_TOTAL]
+    vmm_util, vcpu_util = summarize_cpu_percent(cpu_load)
 
-    cons.consume_stat("Avg", CPU_UTILIZATION_VMM, cpu_utilization_vmm)
-    cons.consume_stat("Avg", CPU_UTILIZATION_VCPUS_TOTAL, cpu_utilization_vcpus)
+    cons.consume_stat("Avg", CPU_UTILIZATION_VMM, vmm_util)
+    cons.consume_stat("Avg", CPU_UTILIZATION_VCPUS_TOTAL, vcpu_util)
 
-    read_values(cons, numjobs, env_id, mode, bs, "iops", logs_path)
-    read_values(cons, numjobs, env_id, mode, bs, "bw", logs_path)
+    for thread_name, data in cpu_load.items():
+        yield from [
+            (f"cpu_utilization_{thread_name}", x, "Percent")
+            for x in list(data.values())[0]
+        ]
 
-
-@pytest.mark.nonci
-@pytest.mark.timeout(CONFIG["time"] * 1000)  # 1.40 hours
-@pytest.mark.parametrize("results_file_dumper", [CONFIG_NAME_ABS], indirect=True)
-def test_block_performance_async(bin_cloner_path, results_file_dumper):
-    """
-    Test block performance for multiple vm configurations.
-
-    @type: performance
-    """
-    logger = logging.getLogger(TEST_ID)
-
-    if not is_io_uring_supported():
-        logger.info("io_uring is not supported. Skipping..")
-        pytest.skip("Cannot run async if io_uring is not supported")
-
-    artifacts = ArtifactCollection(_test_images_s3_bucket())
-    vm_artifacts = ArtifactSet(artifacts.microvms(keyword="1vcpu_1024mb"))
-    vm_artifacts.insert(artifacts.microvms(keyword="2vcpu_1024mb"))
-
-    kernel_artifacts = ArtifactSet(artifacts.kernels())
-    disk_artifacts = ArtifactSet(artifacts.disks(keyword="ubuntu"))
-
-    logger.info("Testing on processor %s", get_cpu_model_name())
-
-    # Create a test context and add builder, logger, network.
-    test_context = TestContext()
-    test_context.custom = {
-        "builder": MicrovmBuilder(bin_cloner_path),
-        "logger": logger,
-        "name": TEST_ID,
-        "results_file_dumper": results_file_dumper,
-        "io_engine": "Async",
-    }
-
-    test_matrix = TestMatrix(
-        context=test_context,
-        artifact_sets=[vm_artifacts, kernel_artifacts, disk_artifacts],
-    )
-    test_matrix.run_test(fio_workload)
+    yield from read_values(cons, numjobs, env_id, mode, bs, "bw", logs_path)
 
 
 @pytest.mark.nonci
-@pytest.mark.timeout(CONFIG["time"] * 1000)  # 1.40 hours
-@pytest.mark.parametrize("results_file_dumper", [CONFIG_NAME_ABS], indirect=True)
-def test_block_performance_sync(bin_cloner_path, results_file_dumper):
+@pytest.mark.timeout(RUNTIME_SEC * 1000)  # 1.40 hours
+@pytest.mark.parametrize("vcpus", [1, 2], ids=["1vcpu", "2vcpu"])
+@pytest.mark.parametrize("fio_mode", ["randread", "randwrite"])
+@pytest.mark.parametrize("fio_block_size", [4096], ids=["bs4096"])
+def test_block_performance(
+    microvm_factory,
+    guest_kernel,
+    rootfs,
+    vcpus,
+    fio_mode,
+    fio_block_size,
+    io_engine,
+    st_core,
+):
     """
-    Test block performance for multiple vm configurations.
-
-    @type: performance
+    Execute block device emulation benchmarking scenarios.
     """
-    logger = logging.getLogger(TEST_ID)
-
-    artifacts = ArtifactCollection(_test_images_s3_bucket())
-    vm_artifacts = ArtifactSet(artifacts.microvms(keyword="1vcpu_1024mb"))
-    vm_artifacts.insert(artifacts.microvms(keyword="2vcpu_1024mb"))
-
-    kernel_artifacts = ArtifactSet(artifacts.kernels())
-    disk_artifacts = ArtifactSet(artifacts.disks(keyword="ubuntu"))
-
-    logger.info("Testing on processor %s", get_cpu_model_name())
-
-    # Create a test context and add builder, logger, network.
-    test_context = TestContext()
-    test_context.custom = {
-        "builder": MicrovmBuilder(bin_cloner_path),
-        "logger": logger,
-        "name": TEST_ID,
-        "results_file_dumper": results_file_dumper,
-        "io_engine": "Sync",
-    }
-
-    test_matrix = TestMatrix(
-        context=test_context,
-        artifact_sets=[vm_artifacts, kernel_artifacts, disk_artifacts],
-    )
-    test_matrix.run_test(fio_workload)
-
-
-def fio_workload(context):
-    """Execute block device emulation benchmarking scenarios."""
-    vm_builder = context.custom["builder"]
-    logger = context.custom["logger"]
-    file_dumper = context.custom["results_file_dumper"]
-    io_engine = context.custom["io_engine"]
-
-    # Create a rw copy artifact.
-    rw_disk = context.disk.copy()
-    # Get ssh key from read-only artifact.
-    ssh_key = context.disk.ssh_key()
-    # Create a fresh microvm from artifacts.
-    vm_instance = vm_builder.build(
-        kernel=context.kernel, disks=[rw_disk], ssh_key=ssh_key, config=context.microvm
-    )
-    basevm = vm_instance.vm
-
+    guest_mem_mib = 1024
+    vm = microvm_factory.build(guest_kernel, rootfs, monitor_memory=False)
+    vm.spawn(log_level="Info")
+    vm.basic_config(vcpu_count=vcpus, mem_size_mib=guest_mem_mib)
+    vm.add_net_iface()
     # Add a secondary block device for benchmark tests.
     fs = drive_tools.FilesystemFile(
-        os.path.join(basevm.fsfiles, "scratch"), CONFIG["block_device_size"]
+        os.path.join(vm.fsfiles, "scratch"), BLOCK_DEVICE_SIZE_MB
     )
-    basevm.add_drive("scratch", fs.path, io_engine=io_engine)
-    basevm.start()
+    vm.add_drive("scratch", fs.path, io_engine=io_engine)
+    vm.start()
 
     # Get names of threads in Firecracker.
     current_cpu_id = 0
-    basevm.pin_vmm(current_cpu_id)
+    vm.pin_vmm(current_cpu_id)
     current_cpu_id += 1
-    basevm.pin_api(current_cpu_id)
-    for vcpu_id in range(basevm.vcpus_count):
+    vm.pin_api(current_cpu_id)
+    for vcpu_id in range(vm.vcpus_count):
         current_cpu_id += 1
-        basevm.pin_vcpu(vcpu_id, current_cpu_id)
+        vm.pin_vcpu(vcpu_id, current_cpu_id)
 
-    st_core = core.Core(
-        name=TEST_ID,
-        iterations=1,
-        custom={
-            "microvm": context.microvm.name(),
-            "kernel": context.kernel.name(),
-            "disk": context.disk.name(),
-            "cpu_model_name": get_cpu_model_name(),
+    # define test dimensions
+    st_core.name = TEST_ID
+    microvm_cfg = f"{vcpus}vcpu_{guest_mem_mib}mb.json"
+    st_core.custom.update(
+        {
+            "guest_config": microvm_cfg.removesuffix(".json"),
+            "io_engine": io_engine,
+        }
+    )
+
+    env_id = f"{st_core.env_id_prefix}/{io_engine.lower()}_{microvm_cfg}"
+
+    fio_id = f"{fio_mode}-bs{fio_block_size}"
+    st_prod = st.producer.LambdaProducer(
+        func=run_fio,
+        func_kwargs={
+            "env_id": env_id,
+            "basevm": vm,
+            "mode": fio_mode,
+            "bs": fio_block_size,
         },
     )
 
-    logger.info(
-        'Testing with microvm: "{}", kernel {}, disk {}'.format(
-            context.microvm.name(), context.kernel.name(), context.disk.name()
-        )
-    )
+    raw_baselines = json.loads(CONFIG_NAME_ABS.read_text("utf-8"))
 
-    ssh_connection = net_tools.SSHConnection(basevm.ssh_config)
-    env_id = (
-        f"{context.kernel.name()}/{context.disk.name()}/"
-        f"{io_engine.lower()}_{context.microvm.name()}"
+    st_cons = st.consumer.LambdaConsumer(
+        metadata_provider=DictMetadataProvider(
+            raw_baselines["measurements"],
+            BlockBaselinesProvider(env_id, fio_id, raw_baselines),
+        ),
+        func=consume_fio_output,
+        func_kwargs={
+            "numjobs": vm.vcpus_count,
+            "mode": fio_mode,
+            "bs": fio_block_size,
+            "env_id": env_id,
+            "logs_path": vm.jailer.chroot_base_with_id(),
+        },
     )
-
-    for mode in CONFIG["fio_modes"]:
-        for bs in CONFIG["fio_blk_sizes"]:
-            fio_id = f"{mode}-bs{bs}"
-            st_prod = st.producer.LambdaProducer(
-                func=run_fio,
-                func_kwargs={
-                    "env_id": env_id,
-                    "basevm": basevm,
-                    "ssh_conn": ssh_connection,
-                    "mode": mode,
-                    "bs": bs,
-                },
-            )
-            st_cons = st.consumer.LambdaConsumer(
-                metadata_provider=DictMetadataProvider(
-                    CONFIG["measurements"], BlockBaselinesProvider(env_id, fio_id)
-                ),
-                func=consume_fio_output,
-                func_kwargs={
-                    "numjobs": basevm.vcpus_count,
-                    "mode": mode,
-                    "bs": bs,
-                    "env_id": env_id,
-                    "logs_path": basevm.jailer.chroot_base_with_id(),
-                },
-            )
-            st_core.add_pipe(st_prod, st_cons, tag=f"{env_id}/{fio_id}")
+    st_core.add_pipe(st_prod, st_cons, tag=f"{env_id}/{fio_id}")
 
     # Gather results and verify pass criteria.
-    try:
-        result = st_core.run_exercise()
-    except core.CoreException as err:
-        handle_failure(file_dumper, err)
-
-    file_dumper.dump(result)
+    st_core.run_exercise()

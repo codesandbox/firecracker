@@ -1,4 +1,8 @@
-![Firecracker Logo Title](docs/images/fc_logo_full_transparent-bg.png)
+<picture>
+   <source media="(prefers-color-scheme: dark)" srcset="docs/images/fc_logo_full_transparent-bg_white-fg.png">
+   <source media="(prefers-color-scheme: light)" srcset="docs/images/fc_logo_full_transparent-bg.png">
+   <img alt="Firecracker Logo Title" width="750" src="docs/images/fc_logo_full_transparent-bg.png">
+</picture>
 
 Our mission is to enable secure, multi-tenant, minimal-overhead execution of
 container and function workloads.
@@ -96,7 +100,7 @@ The **API endpoint** can be used to:
 - Configure the microvm by:
   - Setting the number of vCPUs (the default is 1).
   - Setting the memory size (the default is 128 MiB).
-  - [x86_64 only] Choosing a CPU template (currently, C3 and T2 are available).
+  - Configuring a [CPU template](docs/cpu_templates/cpu-templates.md).
 - Add one or more network interfaces to the microVM.
 - Add one or more read-write or read-only disks to the microVM, each represented
   by a file-backed block device.
@@ -109,6 +113,7 @@ The **API endpoint** can be used to:
 - `[BETA]` Configure the data tree of the guest-facing metadata service. The
   service is only available to the guest if this resource is configured.
 - Add a [vsock socket](docs/vsock.md) to the microVM.
+- Add a [entropy device](docs/entropy.md) to the microVM.
 - Start the microVM using a given kernel image, root file system, and boot
   arguments.
 - [x86_64 only] Stop the microVM.
@@ -121,38 +126,27 @@ The **API endpoint** can be used to:
   scenarios; applies a cgroup/namespace isolation barrier and then
   drops privileges.
 
-## Supported platforms
+## Tested platforms
 
-We continuously test Firecracker on machines with the following CPUs
-micro-architectures: Intel Skylake, Intel Cascade Lake, AMD Zen2 and
-ARM64 Neoverse N1.
+We test all combinations of:
 
-Firecracker is [generally available](docs/RELEASE_POLICY.md) on Intel x86_64,
-AMD x86_64 and ARM64 CPUs (starting from release v0.24) that offer hardware
-virtualization support, and that are released starting with 2015.
-All production use cases should follow [these production host setup instructions](docs/prod-host-setup.md).
-
-Firecracker may work on other x86 and Arm 64-bit CPUs with support for hardware
-virtualization, but any such platform is currently not supported and not fit
-for production. If you want to run Firecracker on such platforms, please
-[open a feature request](https://github.com/firecracker-microvm/firecracker/issues/new?assignees=&labels=&template=feature_request.md&title=%5BFeature+Request%5D+Title).
-
-Firecracker currently only supports little-endian platforms. Firecracker will
-not compile for big-endian architectures, and will not work correctly with
-big-endian configured guests.
-
-## Supported kernels
-
-For a list of supported host/guest kernels and future kernel related
-plans, check out our [kernel support policy](docs/kernel-policy.md).
+| Instance   | Host OS & Kernel   | Guest Rootfs   | Guest Kernel   |
+| :--------- | :----------------- | :------------- | :------------- |
+| m5d.metal  | al2    linux_4.1   | ubuntu 18.04   | linux_4.14     |
+| m6i.metal  | al2    linux_5.10  |                | linux_5.10     |
+| m6a.metal  |                    |                |                |
+| m6g.metal  |                    |                |                |
+| c7g.metal  |                    |                |                |
 
 ## Known issues and Limitations
 
 - The [SendCtrlAltDel](docs/api_requests/actions.md#sendctrlaltdel) API request
   is not supported for aarch64 enabled microVMs.
-- Configuring CPU templates is only supported for Intel enabled microVMs.
+- If a CPU template is not used on x86_64, overwrites of `MSR_IA32_TSX_CTRL` MSR
+  value will not be preserved after restoring from a snapshot.
 - The `pl031` RTC device on aarch64 does not support interrupts, so guest
   programs which use an RTC alarm (e.g. `hwclock`) will not work.
+- Issues and limitations related to snapshots are described in a [separate document](docs/snapshotting/snapshot-support.md#limitations).
 
 ## Performance
 
@@ -177,7 +171,7 @@ You can get in touch with the Firecracker community in the following ways:
 
 - Security-related issues, see our [security policy document](SECURITY.md).
 - Chat with us on our
-  [Slack workspace](https://join.slack.com/t/firecracker-microvm/shared_invite/zt-oxbm7tqt-GLlze9zZ7sdRSDY6OnXXHg).
+  [Slack workspace](https://join.slack.com/t/firecracker-microvm/shared_invite/zt-1zlb87h4z-NED1rBhVqOQ1ygBgT76wlg)
   _Note: most of the maintainers are on a European time zone._
 - Open a GitHub issue in this repository.
 - Email the maintainers at

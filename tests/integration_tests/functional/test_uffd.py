@@ -2,55 +2,42 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test UFFD related functionality when resuming from snapshot."""
 
-import logging
 import os
-import socket
-from subprocess import TimeoutExpired
+import re
 
-import stat
-
+import pytest
 import requests
-import urllib3
 
-from framework.artifacts import SnapshotMemBackendType
-from framework.builder import MicrovmBuilder, SnapshotBuilder
-from framework.utils import run_cmd, UffdHandler
-
-import host_tools.network as net_tools
+from framework.utils import Timeout, UffdHandler, run_cmd
 
 SOCKET_PATH = "/firecracker-uffd.sock"
 
 
-def create_snapshot(bin_cloner_path):
+@pytest.fixture(scope="function", name="snapshot")
+def snapshot_fxt(microvm_factory, guest_kernel_linux_5_10, rootfs_ubuntu_22):
     """Create a snapshot of a microVM."""
-    vm_builder = MicrovmBuilder(bin_cloner_path)
-    vm_instance = vm_builder.build_vm_nano()
-    basevm = vm_instance.vm
-    root_disk = vm_instance.disks[0]
-    ssh_key = vm_instance.ssh_key
+
+    basevm = microvm_factory.build(guest_kernel_linux_5_10, rootfs_ubuntu_22)
+    basevm.spawn()
+    basevm.basic_config(vcpu_count=2, mem_size_mib=256)
+    basevm.add_net_iface()
 
     # Add a memory balloon.
-    response = basevm.balloon.put(
+    basevm.api.balloon.put(
         amount_mib=0, deflate_on_oom=True, stats_polling_interval_s=0
     )
-    assert basevm.api_session.is_status_no_content(response.status_code)
 
     basevm.start()
-    ssh_connection = net_tools.SSHConnection(basevm.ssh_config)
 
     # Verify if guest can run commands.
-    exit_code, _, _ = ssh_connection.execute_command("sync")
+    exit_code, _, _ = basevm.ssh.run("sync")
     assert exit_code == 0
 
-    # Create a snapshot builder from a microvm.
-    snapshot_builder = SnapshotBuilder(basevm)
-
     # Create base snapshot.
-    snapshot = snapshot_builder.create([root_disk.local_path()], ssh_key)
-
+    snapshot = basevm.snapshot_full()
     basevm.kill()
 
-    return snapshot
+    yield snapshot
 
 
 def spawn_pf_handler(vm, handler_path, mem_path):
@@ -59,115 +46,66 @@ def spawn_pf_handler(vm, handler_path, mem_path):
     jailed_mem = vm.create_jailed_resource(mem_path)
     # Copy the valid page fault binary into chroot of microVM.
     jailed_handler = vm.create_jailed_resource(handler_path)
-
     handler_name = os.path.basename(jailed_handler)
-    args = [SOCKET_PATH, jailed_mem]
 
-    uffd_handler = UffdHandler(handler_name, args)
-    real_root = os.open("/", os.O_RDONLY)
-    working_dir = os.getcwd()
-
-    os.chroot(vm.chroot())
-    os.chdir("/")
-    st = os.stat(handler_name)
-    os.chmod(handler_name, st.st_mode | stat.S_IEXEC)
-
-    uffd_handler.spawn()
-    try:
-        outs, errs = uffd_handler.proc().communicate(timeout=1)
-        print(outs)
-        print(errs)
-        assert False, "Could not start PF handler!"
-    except TimeoutExpired:
-        print("This is the good case!")
-
-    # The page fault handler will create the socket path with root rights.
-    # Change rights to the jailer's.
-    os.chown(SOCKET_PATH, vm.jailer.uid, vm.jailer.gid)
-
-    os.fchdir(real_root)
-    os.chroot(".")
-    os.chdir(working_dir)
+    uffd_handler = UffdHandler(
+        handler_name, SOCKET_PATH, jailed_mem, vm.chroot(), "uffd.log"
+    )
+    uffd_handler.spawn(vm.jailer.uid, vm.jailer.gid)
 
     return uffd_handler
 
 
-def test_bad_socket_path(bin_cloner_path, test_microvm_with_api):
+def test_bad_socket_path(uvm_plain, snapshot):
     """
     Test error scenario when socket path does not exist.
-
-    @type: negative
     """
-    logger = logging.getLogger("uffd_bad_socket_path")
-
-    logger.info("Create snapshot")
-    snapshot = create_snapshot(bin_cloner_path)
-
-    logger.info("Load snapshot, mem %s", snapshot.mem)
-    vm = test_microvm_with_api
+    vm = uvm_plain
     vm.spawn()
     jailed_vmstate = vm.create_jailed_resource(snapshot.vmstate)
 
-    response = vm.snapshot.load(
-        mem_backend={"type": SnapshotMemBackendType.UFFD, "path": "inexsistent"},
-        snapshot_path=jailed_vmstate,
+    expected_msg = re.escape(
+        "Load microVM snapshot error: Failed to restore from snapshot: Failed to load guest "
+        "memory: Error creating guest memory from uffd: Failed to connect to UDS Unix stream: No "
+        "such file or directory (os error 2)"
     )
-
-    assert vm.api_session.is_status_bad_request(response.status_code)
-    assert (
-        "Load microVM snapshot error: Cannot connect to UDS in order to "
-        "send information on handling guest memory page-faults due to: "
-        "No such file or directory (os error 2)" in response.text
-    )
+    with pytest.raises(RuntimeError, match=expected_msg):
+        vm.api.snapshot_load.put(
+            mem_backend={"backend_type": "Uffd", "backend_path": "inexistent"},
+            snapshot_path=jailed_vmstate,
+        )
 
 
-def test_unbinded_socket(bin_cloner_path, test_microvm_with_api):
+def test_unbinded_socket(uvm_plain, snapshot):
     """
     Test error scenario when PF handler has not yet called bind on socket.
-
-    @type: negative
     """
-    logger = logging.getLogger("uffd_unbinded_socket")
-
-    logger.info("Create snapshot")
-    snapshot = create_snapshot(bin_cloner_path)
-
-    logger.info("Load snapshot, mem %s", snapshot.mem)
-    vm = test_microvm_with_api
+    vm = uvm_plain
     vm.spawn()
-    jailed_vmstate = vm.create_jailed_resource(snapshot.vmstate)
 
+    jailed_vmstate = vm.create_jailed_resource(snapshot.vmstate)
     socket_path = os.path.join(vm.path, "firecracker-uffd.sock")
     run_cmd("touch {}".format(socket_path))
     jailed_sock_path = vm.create_jailed_resource(socket_path)
 
-    response = vm.snapshot.load(
-        mem_backend={"type": SnapshotMemBackendType.UFFD, "path": jailed_sock_path},
-        snapshot_path=jailed_vmstate,
+    expected_msg = re.escape(
+        "Load microVM snapshot error: Failed to restore from snapshot: Failed to load guest "
+        "memory: Error creating guest memory from uffd: Failed to connect to UDS Unix stream: "
+        "Connection refused (os error 111)"
     )
-
-    assert vm.api_session.is_status_bad_request(response.status_code)
-    assert (
-        "Load microVM snapshot error: Cannot connect to UDS in order to"
-        " send information on handling guest memory page-faults due to: "
-        "Connection refused (os error 111)" in response.text
-    )
+    with pytest.raises(RuntimeError, match=expected_msg):
+        vm.api.snapshot_load.put(
+            mem_backend={"backend_type": "Uffd", "backend_path": jailed_sock_path},
+            snapshot_path=jailed_vmstate,
+        )
 
 
-def test_valid_handler(bin_cloner_path, test_microvm_with_api, uffd_handler_paths):
+def test_valid_handler(uvm_plain, snapshot, uffd_handler_paths):
     """
     Test valid uffd handler scenario.
-
-    @type: functional
     """
-    logger = logging.getLogger("uffd_valid_handler")
-
-    logger.info("Create snapshot")
-    snapshot = create_snapshot(bin_cloner_path)
-
-    logger.info("Load snapshot, mem %s", snapshot.mem)
-    vm_builder = MicrovmBuilder(bin_cloner_path)
-    vm = test_microvm_with_api
+    vm = uvm_plain
+    vm.memory_monitor = None
     vm.spawn()
 
     # Spawn page fault handler process.
@@ -175,25 +113,21 @@ def test_valid_handler(bin_cloner_path, test_microvm_with_api, uffd_handler_path
         vm, uffd_handler_paths["valid_handler"], snapshot.mem
     )
 
-    vm, _ = vm_builder.build_from_snapshot(
-        snapshot, vm=vm, resume=True, uffd_path=SOCKET_PATH
-    )
+    vm.restore_from_snapshot(snapshot, resume=True, uffd_path=SOCKET_PATH)
 
     # Inflate balloon.
-    response = vm.balloon.patch(amount_mib=200)
-    assert vm.api_session.is_status_no_content(response.status_code)
+    vm.api.balloon.patch(amount_mib=200)
 
     # Deflate balloon.
-    response = vm.balloon.patch(amount_mib=0)
-    assert vm.api_session.is_status_no_content(response.status_code)
+    vm.api.balloon.patch(amount_mib=0)
 
     # Verify if guest can run commands.
-    ssh_connection = net_tools.SSHConnection(vm.ssh_config)
-    exit_code, _, _ = ssh_connection.execute_command("sync")
+    exit_code, _, _ = vm.ssh.run("sync")
+
     assert exit_code == 0
 
 
-def test_malicious_handler(bin_cloner_path, test_microvm_with_api, uffd_handler_paths):
+def test_malicious_handler(uvm_plain, snapshot, uffd_handler_paths):
     """
     Test malicious uffd handler scenario.
 
@@ -202,17 +136,10 @@ def test_malicious_handler(bin_cloner_path, test_microvm_with_api, uffd_handler_
     loaded into memory. In this case, Firecracker is designed to freeze,
     instead of silently switching to having the kernel handle page
     faults, so that it becomes obvious that something went wrong.
-
-    @type: negative
     """
-    logger = logging.getLogger("uffd_malicious_handler")
 
-    logger.info("Create snapshot")
-    snapshot = create_snapshot(bin_cloner_path)
-
-    logger.info("Load snapshot, mem %s", snapshot.mem)
-    vm_builder = MicrovmBuilder(bin_cloner_path)
-    vm = test_microvm_with_api
+    vm = uvm_plain
+    vm.memory_monitor = None
     vm.spawn()
 
     # Spawn page fault handler process.
@@ -223,13 +150,8 @@ def test_malicious_handler(bin_cloner_path, test_microvm_with_api, uffd_handler_
     # We expect Firecracker to freeze while resuming from a snapshot
     # due to the malicious handler's unavailability.
     try:
-        vm_builder.build_from_snapshot(
-            snapshot, vm=vm, resume=True, uffd_path=SOCKET_PATH, timeout=30
-        )
-        assert False
-    except (
-        socket.timeout,
-        urllib3.exceptions.ReadTimeoutError,
-        requests.exceptions.ReadTimeout,
-    ) as _err:
-        assert True, _err
+        with Timeout(seconds=30):
+            vm.restore_from_snapshot(snapshot, resume=True, uffd_path=SOCKET_PATH)
+            assert False, "Firecracker should freeze"
+    except (TimeoutError, requests.exceptions.ReadTimeout):
+        pass

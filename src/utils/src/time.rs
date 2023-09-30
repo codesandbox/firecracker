@@ -9,6 +9,7 @@ pub const NANOS_PER_SECOND: u64 = 1_000_000_000;
 pub const NANOS_PER_MILLISECOND: u64 = 1_000_000;
 
 /// Wrapper over `libc::clockid_t` to specify Linux Kernel clock source.
+#[derive(Debug)]
 pub enum ClockType {
     /// Equivalent to `libc::CLOCK_MONOTONIC`.
     Monotonic,
@@ -32,6 +33,7 @@ impl From<ClockType> for libc::clockid_t {
 }
 
 /// Structure representing the date in local time with nanosecond precision.
+#[derive(Debug)]
 pub struct LocalTime {
     /// Seconds in current minute.
     sec: i32,
@@ -70,7 +72,7 @@ impl LocalTime {
             tm_zone: std::ptr::null(),
         };
 
-        // Safe because the parameters are valid.
+        // SAFETY: Safe because the parameters are valid.
         unsafe {
             libc::clock_gettime(libc::CLOCK_REALTIME, &mut timespec);
             libc::localtime_r(&timespec.tv_sec, &mut tm);
@@ -105,7 +107,7 @@ impl fmt::Display for LocalTime {
 }
 
 /// Holds a micro-second resolution timestamp with both the real time and cpu time.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TimestampUs {
     /// Real time in microseconds.
     pub time_us: u64,
@@ -127,9 +129,9 @@ impl Default for TimestampUs {
 /// Uses `_rdstc` on `x86_64` and [`get_time`](fn.get_time.html) on other architectures.
 pub fn timestamp_cycles() -> u64 {
     #[cfg(target_arch = "x86_64")]
-    // Safe because there's nothing that can go wrong with this call.
+    // SAFETY: Safe because there's nothing that can go wrong with this call.
     unsafe {
-        std::arch::x86_64::_rdtsc() as u64
+        std::arch::x86_64::_rdtsc()
     }
     #[cfg(not(target_arch = "x86_64"))]
     {
@@ -147,10 +149,11 @@ pub fn get_time_ns(clock_type: ClockType) -> u64 {
         tv_sec: 0,
         tv_nsec: 0,
     };
-    // Safe because the parameters are valid.
+    // SAFETY: Safe because the parameters are valid.
     unsafe { libc::clock_gettime(clock_type.into(), &mut time_struct) };
-    seconds_to_nanoseconds(time_struct.tv_sec).expect("Time conversion overflow") as u64
-        + (time_struct.tv_nsec as u64)
+    u64::try_from(seconds_to_nanoseconds(time_struct.tv_sec).expect("Time conversion overflow"))
+        .unwrap()
+        + u64::try_from(time_struct.tv_nsec).unwrap()
 }
 
 /// Returns a timestamp in microseconds based on the provided clock type.
@@ -178,7 +181,7 @@ pub fn get_time_ms(clock_type: ClockType) -> u64 {
 ///
 /// * `value` - Timestamp in seconds.
 pub fn seconds_to_nanoseconds(value: i64) -> Option<i64> {
-    value.checked_mul(NANOS_PER_SECOND as i64)
+    value.checked_mul(i64::try_from(NANOS_PER_SECOND).unwrap())
 }
 
 #[cfg(test)]
@@ -244,7 +247,7 @@ mod tests {
     #[test]
     fn test_seconds_to_nanoseconds() {
         assert_eq!(
-            seconds_to_nanoseconds(100).unwrap() as u64,
+            u64::try_from(seconds_to_nanoseconds(100).unwrap()).unwrap(),
             100 * NANOS_PER_SECOND
         );
 

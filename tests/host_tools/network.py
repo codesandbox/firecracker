@@ -2,85 +2,81 @@
 # SPDX-License-Identifier: Apache-2.0
 """Utilities for test host microVM network setup."""
 
-import os
-import socket
-import struct
-from io import StringIO
+import contextlib
+import random
+import string
+from pathlib import Path
+
 from nsenter import Namespace
 from retry import retry
 
-from framework import mpsing
 from framework import utils
 
 
 class SSHConnection:
-    """SSHConnection encapsulates functionality for microVM SSH interaction.
+    """
+    SSHConnection encapsulates functionality for microVM SSH interaction.
 
     This class should be instantiated as part of the ssh fixture with the
     the hostname obtained from the MAC address, the username for logging into
     the image and the path of the ssh key.
 
-    The ssh config dictionary contains the following fields:
-    * hostname
-    * username
-    * ssh_key_path
-
     This translates into an SSH connection as follows:
     ssh -i ssh_key_path username@hostname
     """
 
-    def __init__(self, ssh_config):
+    def __init__(self, netns_path, ssh_key: Path, host, user):
         """Instantiate a SSH client and connect to a microVM."""
-        self.netns_file_path = ssh_config["netns_file_path"]
-        self.ssh_config = ssh_config
-        assert os.path.exists(ssh_config["ssh_key_path"])
+        self.netns_file_path = netns_path
+        self.ssh_key = ssh_key
+        # check that the key exists and the permissions are 0o400
+        # This saves a lot of debugging time.
+        assert ssh_key.exists()
+        ssh_key.chmod(0o400)
+        assert (ssh_key.stat().st_mode & 0o777) == 0o400
+        self.host = host
+        self.user = user
+
+        self.options = [
+            "-q",
+            "-o",
+            "ConnectTimeout=1",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "PreferredAuthentications=publickey",
+            "-i",
+            str(self.ssh_key),
+        ]
 
         self._init_connection()
 
-    def execute_command(self, cmd_string):
-        """Execute the command passed as a string in the ssh context."""
-        exit_code, stdout, stderr = self._exec(cmd_string)
-        return exit_code, StringIO(stdout), StringIO(stderr)
+    def remote_path(self, path):
+        """Convert a path to remote"""
+        return f"{self.user}@{self.host}:{path}"
 
-    def scp_file(self, local_path, remote_path):
-        """Copy a files to the VM using scp."""
-        cmd = (
-            "scp -o StrictHostKeyChecking=no"
-            " -o UserKnownHostsFile=/dev/null"
-            " -i {} {} {}@{}:{}"
-        ).format(
-            self.ssh_config["ssh_key_path"],
-            local_path,
-            self.ssh_config["username"],
-            self.ssh_config["hostname"],
-            remote_path,
-        )
-        if self.netns_file_path:
-            with Namespace(self.netns_file_path, "net"):
-                utils.run_cmd(cmd)
-        else:
-            utils.run_cmd(cmd)
+    def _scp(self, path1, path2, options):
+        """Copy files to/from the VM using scp."""
+        ecode, _, stderr = self._exec(["scp", *options, path1, path2])
+        assert ecode == 0, stderr
 
-    def scp_get_file(self, remote_path, local_path):
+    def scp_put(self, local_path, remote_path, recursive=False):
+        """Copy files to the VM using scp."""
+        opts = self.options.copy()
+        if recursive:
+            opts.append("-r")
+        self._scp(local_path, self.remote_path(remote_path), opts)
+
+    def scp_get(self, remote_path, local_path, recursive=False):
         """Copy files from the VM using scp."""
-        cmd = (
-            "scp -o StrictHostKeyChecking=no"
-            " -o UserKnownHostsFile=/dev/null"
-            " -i {} {}@{}:{} {}"
-        ).format(
-            self.ssh_config["ssh_key_path"],
-            self.ssh_config["username"],
-            self.ssh_config["hostname"],
-            remote_path,
-            local_path,
-        )
-        if self.netns_file_path:
-            with Namespace(self.netns_file_path, "net"):
-                utils.run_cmd(cmd)
-        else:
-            utils.run_cmd(cmd)
+        opts = self.options.copy()
+        if recursive:
+            opts.append("-r")
+        self._scp(self.remote_path(remote_path), local_path, opts)
 
-    @retry(ConnectionError, delay=0.1, tries=20)
+    @retry(ConnectionError, delay=0.15, tries=20, logger=None)
     def _init_connection(self):
         """Create an initial SSH client connection (retry until it works).
 
@@ -89,181 +85,33 @@ class SSHConnection:
         We'll keep trying to execute a remote command that can't fail
         (`/bin/true`), until we get a successful (0) exit code.
         """
-        ecode, _, _ = self._exec("true")
+        ecode, _, _ = self.run("true")
         if ecode != 0:
             raise ConnectionError
 
+    def run(self, cmd_string):
+        """Execute the command passed as a string in the ssh context."""
+        return self._exec(
+            [
+                "ssh",
+                *self.options,
+                f"{self.user}@{self.host}",
+                cmd_string,
+            ]
+        )
+
     def _exec(self, cmd):
         """Private function that handles the ssh client invocation."""
-
-        def _exec_raw(_cmd):
-            # pylint: disable=subprocess-run-check
-            cp = utils.run_cmd(
-                [
-                    "ssh",
-                    "-q",
-                    "-o",
-                    "ConnectTimeout=1",
-                    "-o",
-                    "StrictHostKeyChecking=no",
-                    "-o",
-                    "UserKnownHostsFile=/dev/null",
-                    "-i",
-                    self.ssh_config["ssh_key_path"],
-                    "{}@{}".format(
-                        self.ssh_config["username"], self.ssh_config["hostname"]
-                    ),
-                    _cmd,
-                ],
-                ignore_return_code=True,
-            )
-
-            _res = (cp.returncode, cp.stdout, cp.stderr)
-            return _res
 
         # TODO: If a microvm runs in a particular network namespace, we have to
         # temporarily switch to that namespace when doing something that routes
         # packets over the network, otherwise the destination will not be
         # reachable. Use a better setup/solution at some point!
-        if self.netns_file_path:
-            with Namespace(self.netns_file_path, "net"):
-                res = _exec_raw(cmd)
-        else:
-            res = _exec_raw(cmd)
-        return res
-
-
-class NoMoreIPsError(Exception):
-    """No implementation required."""
-
-
-class InvalidIPCount(Exception):
-    """No implementation required."""
-
-
-class UniqueIPv4Generator(mpsing.MultiprocessSingleton):
-    """Singleton implementation.
-
-    Each microVM needs to have a unique IP on the host network.
-
-    This class should be instantiated once per test session. All the
-    microvms will have to use the same netmask length for
-    the generator to work.
-
-    This class will only generate IP addresses from the ranges
-    192.168.0.0 - 192.168.255.255 and 172.16.0.0 - 172.31.255.255 which
-    are the private IPs sub-networks.
-
-    For a network mask of 30 bits, the UniqueIPv4Generator can generate up
-    to 16320 sub-networks, each with 2 valid IPs from the
-    192.168.0.0 - 192.168.255.255 range and 244800 sub-networks from the
-    172.16.0.0 - 172.31.255.255 range.
-    """
-
-    @staticmethod
-    def __ip_to_int(ip: str):
-        return int.from_bytes(socket.inet_aton(ip), "big")
-
-    def __init__(self):
-        """Don't call directly. Use cls.instance() instead."""
-        super().__init__()
-
-        # For the IPv4 address range 192.168.0.0 - 192.168.255.255, the mask
-        # length is 16 bits. This means that the netmask_len used to
-        # initialize the class can't be smaller that 16. For now we stick to
-        # the default mask length = 30.
-        self.netmask_len = 30
-        self.ip_range = [
-            ("192.168.0.0", "192.168.255.255"),
-            ("172.16.0.0", "172.31.255.255"),
-        ]
-        # We start by consuming IPs from the first defined range.
-        self.ip_range_index = 0
-        # The ip_range_min_index is the first IP in the range that can be used.
-        # For the first range, this corresponds to "192.168.0.0".
-        self.ip_range_min_index = 0
-
-        # The ip_range_max_index is the last IP in the range that can be used.
-        # For the first range, this corresponds to "192.168.255.255".
-        self.ip_range_max_index = 1
-        self.next_valid_subnet_id = self.__ip_to_int(
-            self.ip_range[self.ip_range_index][0]
-        )
-
-        # The subnet_len contains the number of valid IPs in a subnet and it is
-        # used to increment the next_valid_subnet_id once a request for a
-        # subnet is issued.
-        self.subnet_max_ip_count = 1 << 32 - self.netmask_len
-
-    def __ensure_next_subnet(self):
-        """Raise an exception if there are no subnets available."""
-        max_ip_as_int = self.__ip_to_int(
-            self.ip_range[self.ip_range_index][self.ip_range_max_index]
-        )
-
-        # Check if there are any IPs left to use from the current range.
-        if self.next_valid_subnet_id + self.subnet_max_ip_count > max_ip_as_int:
-            # Check if there are any other IP ranges.
-            if self.ip_range_index < len(self.ip_range) - 1:
-                # Move to the next IP range.
-                self.ip_range_index += 1
-                self.next_valid_subnet_id = self.__ip_to_int(
-                    self.ip_range[self.ip_range_index][self.ip_range_min_index]
-                )
-            else:
-                # There are no other ranges defined, so no more unassigned IPs.
-                raise NoMoreIPsError
-
-    def get_netmask_len(self):
-        """Return the network mask length."""
-        return self.netmask_len
-
-    @mpsing.ipcmethod
-    def get_next_available_subnet_range(self):
-        """Return a pair of IPS encompassing an unused subnet.
-
-        :return: range of IPs (defined as a pair) from an unused subnet.
-         The mask used is the one defined when instantiating the
-         UniqueIPv4Generator class.
-        """
-        self.__ensure_next_subnet()
-        next_available_subnet = (
-            socket.inet_ntoa(struct.pack("!L", self.next_valid_subnet_id)),
-            socket.inet_ntoa(
-                struct.pack(
-                    "!L", self.next_valid_subnet_id + (self.subnet_max_ip_count - 1)
-                )
-            ),
-        )
-
-        self.next_valid_subnet_id += self.subnet_max_ip_count
-        return next_available_subnet
-
-    @mpsing.ipcmethod
-    def get_next_available_ips(self, count):
-        """Return a count of unique IPs.
-
-        Raises InvalidIPCount when the requested IPs number is > than the
-        length of the subnet mask -2. Two IPs from the subnet are reserved
-        because the first address is the subnet identifier and the last IP is
-        the broadcast IP.
-
-        :param count: number of unique IPs to return
-        :return: list of IPs as a list of strings
-        """
-        if count > self.subnet_max_ip_count - 2:
-            raise InvalidIPCount
-
-        self.__ensure_next_subnet()
-        # The first IP in a subnet is the subnet identifier.
-        next_available_ip = self.next_valid_subnet_id + 1
-        ip_list = []
-        for _ in range(count):
-            ip_as_string = socket.inet_ntoa(struct.pack("!L", next_available_ip))
-            ip_list.append(ip_as_string)
-            next_available_ip += 1
-        self.next_valid_subnet_id += self.subnet_max_ip_count
-        return ip_list
+        ctx = contextlib.nullcontext()
+        if self.netns_file_path is not None:
+            ctx = Namespace(self.netns_file_path, "net")
+        with ctx:
+            return utils.run_cmd(cmd, ignore_return_code=True)
 
 
 def mac_from_ip(ip_address):
@@ -280,19 +128,22 @@ def mac_from_ip(ip_address):
     :return: MAC address from IP
     """
     mac_as_list = ["06", "00"]
-    mac_as_list.extend(
-        list(map(lambda val: "{0:02x}".format(int(val)), ip_address.split(".")))
-    )
-
-    return "{}:{}:{}:{}:{}:{}".format(*mac_as_list)
+    mac_as_list.extend(f"{int(octet):02x}" for octet in ip_address.split("."))
+    return ":".join(mac_as_list)
 
 
 def get_guest_net_if_name(ssh_connection, guest_ip):
     """Get network interface name based on its IPv4 address."""
     cmd = "ip a s | grep '{}' | tr -s ' ' | cut -d' ' -f6".format(guest_ip)
-    _, guest_if_name, _ = ssh_connection.execute_command(cmd)
-    if_name = guest_if_name.read().strip()
+    _, guest_if_name, _ = ssh_connection.run(cmd)
+    if_name = guest_if_name.strip()
     return if_name if if_name != "" else None
+
+
+def random_str(k):
+    """Create a random string of length `k`."""
+    symbols = string.ascii_lowercase + string.digits
+    return "".join(random.choices(symbols, k=k))
 
 
 class Tap:
@@ -301,17 +152,16 @@ class Tap:
     def __init__(self, name, netns, ip=None):
         """Set up the name and network namespace for this tap interface.
 
-        It also creates a new tap device, and brings it up. The tap will
-        stay on the host as long as the object obtained by instantiating this
-        class will be in scope. Once it goes out of scope, its destructor will
-        get called and the tap interface will get removed.
-        The function also moves the interface to the specified
-        namespace.
+        It also creates a new tap device, brings it up and moves the interface
+        to the specified namespace.
         """
-        utils.run_cmd("ip tuntap add mode tap name " + name)
-        utils.run_cmd("ip link set {} netns {}".format(name, netns))
+        # Avoid a conflict if two tests want to create the same tap device tap0
+        # in the host before moving it into its own netns
+        temp_name = "tap" + random_str(k=8)
+        utils.run_cmd(f"ip tuntap add mode tap name {temp_name}")
+        utils.run_cmd(f"ip link set {temp_name} name {name} netns {netns}")
         if ip:
-            utils.run_cmd("ip netns exec {} ifconfig {} {} up".format(netns, name, ip))
+            utils.run_cmd(f"ip netns exec {netns} ifconfig {name} {ip} up")
         self._name = name
         self._netns = netns
 
@@ -332,3 +182,6 @@ class Tap:
                 self.netns, self.name, tx_queue_len
             )
         )
+
+    def __repr__(self):
+        return f"<Tap name={self.name} netns={self.netns}>"

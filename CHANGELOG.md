@@ -1,5 +1,190 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- [#4045](https://github.com/firecracker-microvm/firecracker/pull/4045)
+  and [#4075](https://github.com/firecracker-microvm/firecracker/pull/4075):
+  Added `snapshot-editor` tool for modifications of snapshot files.
+  It allows for rebasing of memory snapshot files, printing and
+  removing aarch64 registers from the vmstate and obtaining snapshot version.
+- [#3967](https://github.com/firecracker-microvm/firecracker/pull/3967/):
+  Added new fields to the custom CPU templates. (aarch64 only) `vcpu_features`
+  field allows modifications of vCPU features enabled during vCPU
+  initialization. `kvm_capabilities` field allows modifications of KVM
+  capability checks that Firecracker performs during boot. If any of
+  these fields are in use, minimal target snapshot version is
+  restricted to 1.5.
+
+### Changed
+
+- Updated deserialization of `bitmap` for custom CPU templates to allow usage
+  of '_' as a separator.
+- Changed the strip feature of `cpu-template-helper` tool to operate bitwise.
+- Better logs during validation of CPU ID in snapshot restoration path. Also
+  Firecracker now does not fail if it can't get CPU ID from the host or
+  can't find CPU ID in the snapshot.
+- Changed the serial device to only try to initialize itself if stdin is a terminal
+  or a FIFO pipe. This fixes logged warnings about the serial device failing to
+  initialize if the process is daemonized (in which case stdin is /dev/null instead
+  of a terminal).
+- Changed to show a warning message when launching a microVM with C3 template on
+  a processor prior to Intel Cascade Lake, because the guest kernel does not
+  apply the mitigation against MMIO stale data vulnerability when it is running
+  on a processor that does not enumerate FBSDP_NO, PSDP_NO and SBDR_SSDP_NO on
+  IA32_ARCH_CAPABILITIES MSR.
+- Made Firecracker resize its file descriptor table on process start. It now
+  preallocates the in-kernel fdtable to hold `RLIMIT_NOFILE` many fds (or 2048
+  if no limit is set). This avoids the kernel reallocating the fdtable during
+  Firecracker operations, resulting in a 30ms to 70ms reduction of snapshot
+  restore times for medium to large microVMs with many devices attached.
+- Changed the dump feature of `cpu-template-helper` tool not to enumerate program
+  counter (PC) on ARM because it is determined by the given kernel image and
+  it is useless in the custom CPU template context.
+- The ability to create snapshots for an older version of Firecracker is now
+  deprecated. As a result, the `version` body field in `PUT` on
+  `/snapshot/create` request in deprecated.
+- Added support for the /dev/userfaultfd device available on linux kernels >=
+  6.1. This is the default for creating UFFD handlers on these kernel versions.
+  If it is unavailable, Firecracker falls back to the userfaultfd syscall.
+- Deprecated `cpu_template` field in `PUT` and `PATCH` requests on `/machine-config`
+  API, which is used to set a static CPU template. Custom CPU templates added in
+  v1.4.0 are available as an improved iteration of the static CPU templates. For
+  more information about the transition from static CPU templates to custom CPU
+  templates, please refer to [this GitHub discussion](https://github.com/firecracker-microvm/firecracker/discussions/4135).
+
+### Fixed
+
+- Fixed a change in behavior of normalize host brand string that breaks
+  Firecracker on external instances.
+- Fixed the T2A CPU template not to unset the MMX bit (CPUID.80000001h:EDX[23])
+  and the FXSR bit (CPUID.80000001h:EDX[24]).
+- Fixed the T2A CPU template to set the RstrFpErrPtrs bit
+  (CPUID.80000008h:EBX[2]).
+- Fixed a bug where Firecracker would crash during boot if a guest set up a virtio
+  queue that partially overlapped with the MMIO gap. Now Firecracker instead
+  correctly refuses to activate the corresponding virtio device.
+- Fixed the T2CL CPU template to pass through security mitigation bits that are
+  listed by KVM as bits able to be passed through. By making the most use of the
+  available hardware security mitigations on a processor that a guest is running
+  on, the guest might be able to benefit from performance improvements.
+- Fixed the T2S CPU template to set the GDS_NO bit of the IA32_ARCH_CAPABILITIES
+  MSR to 1 in accordance with an Intel microcode update. To use the template
+  securely, users should apply the latest microcode update on the host.
+- Fixed the spelling of the `nomodule` param passed in the default kernel
+  command line parameters. This is a **breaking change** for setups that
+  use the default kernel command line which also depend on being able to
+  load kernel modules at runtime. This may also break setups which use the
+  default kernel command line and which use an init binary that
+  inadvertently depends on the misspelled param ("nomodules") being
+  present at the command line, since this param will no longer be passed.
+
+## [1.4.0]
+
+### Added
+
+- Added support for custom CPU templates allowing users to adjust vCPU features
+  exposed to the guest via CPUID, MSRs and ARM registers.
+- Introduced V1N1 static CPU template for ARM to represent Neoverse V1 CPU
+  as Neoverse N1.
+- Added support for the `virtio-rng` entropy device. The device is optional. A
+  single device can be enabled per VM using the `/entropy` endpoint.
+- Added a `cpu-template-helper` tool for assisting with creating and managing
+  custom CPU templates.
+
+### Changed
+
+- Set FDP_EXCPTN_ONLY bit (CPUID.7h.0:EBX[6]) and ZERO_FCS_FDS bit
+  (CPUID.7h.0:EBX[13]) in Intel's CPUID normalization process.
+
+### Fixed
+
+- Fixed feature flags in T2S CPU template on Intel Ice Lake.
+- Fixed CPUID leaf 0xb to be exposed to guests running on AMD host.
+- Fixed a performance regression in the jailer logic for closing open file
+  descriptors. Related to:
+  [#3542](https://github.com/firecracker-microvm/firecracker/issues/3542).
+- A race condition that has been identified between the API thread and the VMM
+  thread due to a misconfiguration of the `api_event_fd`.
+- Fixed CPUID leaf 0x1 to disable perfmon and debug feature on x86 host.
+- Fixed passing through cache information from host in CPUID leaf 0x80000006.
+- Fixed the T2S CPU template to set the RRSBA bit of the IA32_ARCH_CAPABILITIES
+  MSR to 1 in accordance with an Intel microcode update.
+- Fixed the T2CL CPU template to pass through the RSBA and RRSBA bits of the
+  IA32_ARCH_CAPABILITIES MSR from the host in accordance with an Intel microcode
+  update.
+- Fixed passing through cache information from host in CPUID leaf 0x80000005.
+- Fixed the T2A CPU template to disable SVM (nested virtualization).
+- Fixed the T2A CPU template to set EferLmsleUnsupported bit
+  (CPUID.80000008h:EBX[20]), which indicates that EFER[LMSLE] is not supported.
+
+## [1.3.0]
+
+### Added
+
+- Introduced T2CL (Intel) and T2A (AMD) CPU templates to provide
+  instruction set feature parity between Intel and AMD CPUs when using
+  these templates.
+- Added Graviton3 support (c7g instance type).
+
+### Changed
+
+- Improved error message when invalid network backend provided.
+- Improved TCP throughput by between 5% and 15% (depending on CPU) by using
+  scatter-gather I/O in the net device's TX path.
+- Upgraded Rust toolchain from 1.64.0 to 1.66.0.
+- Made seccompiler output bit-reproducible.
+
+### Fixed
+
+- Fixed feature flags in T2 CPU template on Intel Ice Lake.
+
+## [1.2.0]
+
+### Added
+
+- Added a new CPU template called `T2S`. This exposes the same CPUID as `T2` to
+  the Guest and also overwrites the `ARCH_CAPABILITIES` MSR to expose a reduced
+  set of capabilities. With regards to hardware vulnerabilities and mitigations,
+  the Guest vCPU will apear to look like a Skylake CPU, making it safe to
+  snapshot uVMs running on a newer host CPU (Cascade Lake) and restore on a host
+  that has a Skylake CPU.
+- Added a new CLI option `--metrics-path PATH`. It accepts a file parameter
+  where metrics will be sent to.
+- Added baselines for m6i.metal and m6a.metal for all long running performance
+  tests.
+- Releases now include debuginfo files.
+
+### Changed
+
+- Changed the jailer option `--exec-file` to fail if the filename does not
+  contain the string `firecracker` to prevent from running non-firecracker
+  binaries.
+- Upgraded Rust toolchain from 1.52.1 to 1.64.0.
+- Switched to specifying our dependencies using caret requirements instead
+  of comparison requirements.
+- Updated all dependencies to their respective newest versions.
+
+### Fixed
+
+- Made the `T2` template more robust by explicitly disabling additional
+  CPUID flags that should be off but were missed initially or that were
+  not available in the spec when the template was created.
+- Now MAC address is correctly displayed when queried with GET `/vm/config`
+  if left unspecified in both pre and post snapshot states.
+- Fixed a self-DoS scenario in the virtio-queue code by reporting and
+  terminating execution when the number of available descriptors reported
+  by the driver is higher than the queue size.
+- Fixed the bad handling of kernel cmdline parameters when init arguments were
+  provided in the `boot_args` field of the JSON body of the PUT `/boot-source`
+  request.
+- Fixed a bug on ARM64 hosts where the upper 64bits of the V0-V31 FL/SIMD
+  registers were not saved correctly when taking a snapshot, potentially
+  leading to data loss. This change invalidates all ARM64 snapshots taken
+  with versions of Firecracker <= 1.1.3.
+- Improved stability and security when saving CPU MSRs in snapshots.
+
 ## [1.1.0]
 
 ### Added

@@ -2,10 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Some common defines used in different modules of the testing framework."""
 
+import platform
 from pathlib import Path
-
-# URL prefix used for the API calls through a UNIX domain socket
-API_USOCKET_URL_PREFIX = "http+unix://"
 
 # Firecracker's binary name
 FC_BINARY_NAME = "firecracker"
@@ -28,21 +26,6 @@ SECCOMP_JSON_DIR = FC_WORKSPACE_DIR / "resources/seccomp"
 # Maximum accepted duration of an API call, in milliseconds
 MAX_API_CALL_DURATION_MS = 700
 
-# Relative path to the location of the kernel file
-MICROVM_KERNEL_RELPATH = "kernel/"
-
-# Relative path to the location of the filesystems
-MICROVM_FSFILES_RELPATH = "fsfiles/"
-
-# The s3 bucket that holds global Firecracker specifications
-SPEC_S3_BUCKET = "spec.ccfc.min"
-
-# The default s3 bucket that holds Firecracker microvm test images
-DEFAULT_TEST_IMAGES_S3_BUCKET = "spec.ccfc.min"
-
-# Global directory for any of the pytest tests temporary files
-ENV_TEST_IMAGES_S3_BUCKET = "TEST_MICROVM_IMAGES_S3_BUCKET"
-
 # Default test session root directory path
 DEFAULT_TEST_SESSION_ROOT_PATH = "/srv"
 
@@ -57,4 +40,12 @@ FC_PID_FILE_NAME = "firecracker.pid"
 # Firecracker.
 MIN_KERNEL_VERSION_FOR_IO_URING = "5.10.51"
 
-SUPPORTED_KERNELS = ["4.14", "5.10"]
+SUPPORTED_HOST_KERNELS = ["4.14", "5.10", "6.1"]
+
+IMG_DIR = Path(DEFAULT_TEST_SESSION_ROOT_PATH) / "img"
+
+# fall-back to the local directory
+if not IMG_DIR.exists():
+    IMG_DIR = Path(__file__).joinpath("../../../build/img").resolve()
+
+ARTIFACT_DIR = IMG_DIR / platform.machine()

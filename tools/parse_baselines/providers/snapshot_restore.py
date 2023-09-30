@@ -2,17 +2,18 @@
 # SPDX-License-Identifier: Apache-2.0
 """Implement the DataParser for snapshot restore performance tests."""
 
-import statistics
 import math
+import statistics
 from collections.abc import Iterator
 from typing import List
+
 from providers.types import DataParser
 
 # We add a small extra percentage margin, to account for small variations
 # that were not caught while gathering baselines. This provides
 # slightly better reliability, while not affecting regression
 # detection.
-DELTA_EXTRA_MARGIN = 4
+DELTA_EXTRA_MARGIN = 6
 
 
 # pylint: disable=R0903
@@ -25,8 +26,7 @@ class SnapshotRestoreDataParser(DataParser):
         super().__init__(
             data_provider,
             [
-                "restore_latency/P50",
-                "restore_latency/P90",
+                "latency/Avg",
             ],
         )
 

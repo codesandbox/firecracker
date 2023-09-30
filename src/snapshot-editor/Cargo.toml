@@ -1,0 +1,21 @@
+[package]
+name = "snapshot-editor"
+version = "1.5.0"
+authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
+edition = "2021"
+license = "Apache-2.0"
+
+[[bin]]
+name = "snapshot-editor"
+bench = false
+
+[dependencies]
+clap = { version = "4.4.4", features = ["derive", "string"] }
+clap-num = "1.0.2"
+displaydoc = "0.2.4"
+libc = "0.2.148"
+snapshot = { path = "../snapshot" }
+thiserror = "1.0.48"
+vmm = { path = "../vmm" }
+
+fc_utils = { package = "utils", path = "../utils" }

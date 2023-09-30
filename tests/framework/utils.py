@@ -1,29 +1,35 @@
 # Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 """Generic utility functions that are used in the framework."""
-import asyncio
+
 import functools
 import glob
+import json
 import logging
 import os
-import re
-import subprocess
-import threading
-import typing
-import time
 import platform
-
-from collections import namedtuple, defaultdict
+import re
+import signal
+import stat
+import subprocess
+import time
+import typing
+from collections import defaultdict, namedtuple
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Dict
+
+import packaging.version
 import psutil
 from retry import retry
 from retry.api import retry_call
-from framework import utils
+
 from framework.defs import MIN_KERNEL_VERSION_FOR_IO_URING
 
+FLUSH_CMD = 'screen -S {session} -X colon "logfile flush 0^M"'
 CommandReturn = namedtuple("CommandReturn", "returncode stdout stderr")
 CMDLOG = logging.getLogger("commands")
-GET_CPU_LOAD = "top -bn1 -H -p {} | tail -n+8"
+GET_CPU_LOAD = "top -bn1 -H -p {} -w512 | tail -n+8"
 
 
 class ProcessManager:
@@ -54,7 +60,7 @@ class ProcessManager:
         return psutil.Process(pid).cpu_affinity(real_cpulist)
 
     @staticmethod
-    def get_cpu_percent(pid: int) -> float:
+    def get_cpu_percent(pid: int) -> Dict[str, Dict[str, float]]:
         """Return the instant process CPU utilization percent."""
         _, stdout, _ = run_cmd(GET_CPU_LOAD.format(pid))
         cpu_percentages = {}
@@ -62,11 +68,15 @@ class ProcessManager:
         # Take all except the last line
         lines = stdout.strip().split(sep="\n")
         for line in lines:
+            # sometimes the firecracker process will have gone away, in which case top does not return anything
+            if not line:
+                continue
+
             info = line.strip().split()
             # We need at least CPU utilization and threads names cols (which
             # might be two cols e.g `fc_vcpu 0`).
             info_len = len(info)
-            assert info_len > 11
+            assert info_len > 11, line
 
             cpu_percent = float(info[8])
             task_id = info[0]
@@ -80,31 +90,93 @@ class ProcessManager:
         return cpu_percentages
 
 
+@contextmanager
+def chroot(path):
+    """
+    Create a chroot environment for running some code
+    """
+
+    # Need to keep these around so we can exit the chroot
+    real_root = os.open("/", os.O_RDONLY)
+    working_dir = os.getcwd()
+
+    try:
+        # Jump in the chroot
+        os.chroot(path)
+        os.chdir("/")
+        yield
+
+    finally:
+        # Jump out of the chroot
+        os.fchdir(real_root)
+        os.chroot(".")
+        os.chdir(working_dir)
+
+
 class UffdHandler:
     """Describe the UFFD page fault handler process."""
 
-    def __init__(self, name, args):
+    def __init__(self, name, socket_path, mem_file, chroot_path, log_file_name):
         """Instantiate the handler process with arguments."""
         self._proc = None
-        self._args = [f"/{name}"]
-        self._args.extend(args)
+        self._handler_name = name
+        self._socket_path = socket_path
+        self._mem_file = mem_file
+        self._chroot = chroot_path
+        self._log_file = log_file_name
 
-    def spawn(self):
+    def spawn(self, uid, gid):
         """Spawn handler process using arguments provided."""
-        self._proc = subprocess.Popen(
-            self._args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1
-        )
 
+        with chroot(self._chroot):
+            st = os.stat(self._handler_name)
+            os.chmod(self._handler_name, st.st_mode | stat.S_IEXEC)
+
+            chroot_log_file = Path("/") / self._log_file
+            with open(chroot_log_file, "w", encoding="utf-8") as logfile:
+                args = [f"/{self._handler_name}", self._socket_path, self._mem_file]
+                self._proc = subprocess.Popen(
+                    args, stdout=logfile, stderr=subprocess.STDOUT
+                )
+
+            # Give it time start and fail, if it really has too (bad things happen).
+            time.sleep(1)
+            if not self.is_running():
+                print(chroot_log_file.read_text(encoding="utf-8"))
+                assert False, "Could not start PF handler!"
+
+            # The page fault handler will create the socket path with root rights.
+            # Change rights to the jailer's.
+            os.chown(self._socket_path, uid, gid)
+
+    @property
     def proc(self):
         """Return UFFD handler process."""
         return self._proc
 
+    def is_running(self):
+        """Check if UFFD process is running"""
+        return self.proc is not None and self.proc.poll() is None
+
+    @property
+    def log_file(self):
+        """Return the path to the UFFD handler's log file"""
+        return Path(self._chroot) / Path(self._log_file)
+
+    @property
+    def log_data(self):
+        """Return the log data of the UFFD handler"""
+        if self.log_file is None:
+            return ""
+        return self.log_file.read_text(encoding="utf-8")
+
     def __del__(self):
         """Tear down the UFFD handler process."""
-        self._proc.kill()
+        if self.proc is not None:
+            self.proc.kill()
 
 
-# pylint: disable=R0903
+# pylint: disable=too-few-public-methods
 class CpuMap:
     """Cpu map from real cpu cores to containers visible cores.
 
@@ -132,21 +204,26 @@ class CpuMap:
         return len(CpuMap.arr)
 
     @classmethod
-    def _cpuset_mountpoint(cls):
-        """Obtain the cpuset mountpoint."""
-        cmd = "cat /proc/mounts | grep cgroup | grep cpuset | cut -d' ' -f2"
-        _, stdout, _ = run_cmd(cmd)
-        return stdout.strip()
-
-    @classmethod
     def _cpus(cls):
         """Obtain the real processor map.
 
         See this issue for details:
         https://github.com/moby/moby/issues/20770.
         """
-        cmd = "cat {}/cpuset.cpus".format(CpuMap._cpuset_mountpoint())
-        _, cpulist, _ = run_cmd(cmd)
+        # The real processor map is found at different paths based on cgroups version:
+        #  - cgroupsv1: /cpuset.cpus
+        #  - cgroupsv2: /cpuset.cpus.effective
+        # For more details, see https://docs.kernel.org/admin-guide/cgroup-v2.html#cpuset-interface-files
+        cpulist = None
+        for path in [
+            Path("/sys/fs/cgroup/cpuset/cpuset.cpus"),
+            Path("/sys/fs/cgroup/cpuset.cpus.effective"),
+        ]:
+            if path.exists():
+                cpulist = path.read_text("ascii").strip()
+                break
+        else:
+            raise RuntimeError("Could not find cgroups cpuset")
         return ListFormatParser(cpulist).parse()
 
 
@@ -219,30 +296,9 @@ class CmdBuilder:
     def build(self):
         """Build the command."""
         cmd = self._bin_path + " "
-        for (flag, value) in self._args.items():
+        for flag, value in self._args.items():
             cmd += f"{flag} {value} "
         return cmd
-
-
-class StoppableThread(threading.Thread):
-    """
-    Thread class with a stop() method.
-
-    The thread itself has to check regularly for the stopped() condition.
-    """
-
-    def __init__(self, *args, **kwargs):
-        """Set up a Stoppable thread."""
-        super().__init__(*args, **kwargs)
-        self._should_stop = False
-
-    def stop(self):
-        """Set that the thread should stop."""
-        self._should_stop = True
-
-    def stopped(self):
-        """Check if the thread was stopped."""
-        return self._should_stop
 
 
 # pylint: disable=R0903
@@ -380,13 +436,11 @@ def get_free_mem_ssh(ssh_connection):
     :param ssh_connection: connection to the guest
     :return: available mem column output of 'free'
     """
-    _, stdout, stderr = ssh_connection.execute_command(
-        "cat /proc/meminfo | grep MemAvailable"
-    )
-    assert stderr.read() == ""
+    _, stdout, stderr = ssh_connection.run("cat /proc/meminfo | grep MemAvailable")
+    assert stderr == ""
 
     # Split "MemAvailable:   123456 kB" and validate it
-    meminfo_data = stdout.read().split()
+    meminfo_data = stdout.split()
     if len(meminfo_data) == 3:
         # Return the middle element in the array
         return int(meminfo_data[1])
@@ -439,100 +493,6 @@ def run_cmd_sync(cmd, ignore_return_code=False, no_shell=False, cwd=None):
     return CommandReturn(proc.returncode, stdout.decode(), stderr.decode())
 
 
-async def run_cmd_async(cmd, ignore_return_code=False, no_shell=False):
-    """
-    Create a coroutine that executes a given command.
-
-    :param cmd: command to execute
-    :param ignore_return_code: whether a non-zero return code should be ignored
-    :param noshell: don't run the command in a sub-shell
-    :return: return code, stdout, stderr
-    """
-    if isinstance(cmd, list) or no_shell:
-        # Create the async process
-        proc = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-    else:
-        proc = await asyncio.create_subprocess_shell(
-            cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-
-    # Capture stdout/stderr
-    stdout, stderr = await proc.communicate()
-
-    output_message = f"\n[{proc.pid}] Command:\n{cmd}"
-    # Append stdout/stderr to the output message
-    if stdout.decode() != "":
-        output_message += f"\n[{proc.pid}] stdout:\n{stdout.decode()}"
-    if stderr.decode() != "":
-        output_message += f"\n[{proc.pid}] stderr:\n{stderr.decode()}"
-
-    # If a non-zero return code was thrown, raise an exception
-    if not ignore_return_code and proc.returncode != 0:
-        output_message += f"\nReturned error code: {proc.returncode}"
-
-        if stderr.decode() != "":
-            output_message += f"\nstderr:\n{stderr.decode()}"
-        raise ChildProcessError(output_message)
-
-    # Log the message with one call so that multiple statuses
-    # don't get mixed up
-    CMDLOG.debug(output_message)
-
-    return CommandReturn(proc.returncode, stdout.decode(), stderr.decode())
-
-
-def run_cmd_list_async(cmd_list):
-    """
-    Run a list of commands asynchronously and wait for them to finish.
-
-    :param cmd_list: list of commands to execute
-    :return: None
-    """
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        # Create event loop when one is not available
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    cmds = []
-    # Create a list of partial functions to run
-    for cmd in cmd_list:
-        cmds.append(run_cmd_async(cmd))
-
-    # Wait until all are complete
-    loop.run_until_complete(asyncio.gather(*cmds))
-
-
-def configure_git_safe_directory():
-    """
-    Add the root firecracker git folder to safe.directory config.
-
-    Firecracker root git folder in the container is
-    bind-mounted to a folder on the host which is mapped to a
-    user that is different from the user which runs the integ tests.
-    This difference in ownership is validated against by git.
-    https://github.blog/2022-04-12-git-security-vulnerability-announced/
-
-    :return: none
-    """
-    # devtool script will set the working directory to FC_ROOT/tests.
-    # We will need the parent for safe.directory configuration
-    working_dir = Path(os.getcwd())
-
-    try:
-        utils.run_cmd(
-            "git config --global " "--add safe.directory {}".format(working_dir.parent)
-        )
-    except ChildProcessError as error:
-        raise Exception(
-            "Failure to set the safe.directory "
-            "git config to [{}] required for gitlint tests".format(working_dir.parent)
-        ) from error
-
-
 def run_cmd(cmd, ignore_return_code=False, no_shell=False, cwd=None):
     """
     Run a command using the sync function that logs the output.
@@ -580,7 +540,7 @@ def get_cpu_percent(pid: int, iterations: int, omit: int) -> dict:
         current_cpu_percentages = ProcessManager.get_cpu_percent(pid)
         assert len(current_cpu_percentages) > 0
 
-        for (thread_name, task_ids) in current_cpu_percentages.items():
+        for thread_name, task_ids in current_cpu_percentages.items():
             if not cpu_percentages.get(thread_name):
                 cpu_percentages[thread_name] = {}
             for task_id in task_ids:
@@ -591,7 +551,42 @@ def get_cpu_percent(pid: int, iterations: int, omit: int) -> dict:
     return cpu_percentages
 
 
-@retry(delay=0.5, tries=5)
+def summarize_cpu_percent(cpu_percentages: dict):
+    """
+    Aggregates the results of `get_cpu_percent` into average utilization for the vmm thread, and total average
+    utilization of all vcpu threads
+
+    :param cpu_percentages: mapping {thread_name: { thread_id -> [cpu samples])}}.
+    :return: A tuple (vmm utilization, total vcpu utilization)
+    """
+
+    def avg(thread_name):
+        assert thread_name in cpu_percentages and cpu_percentages[thread_name]
+
+        # Generally, we expect there to be just one thread with any given name, but sometimes there's two 'firecracker'
+        # threads
+        data = list(cpu_percentages[thread_name].values())[0]
+        return sum(data) / len(data)
+
+    vcpu_util_total = 0
+
+    vcpu = 0
+    while f"fc_vcpu {vcpu}" in cpu_percentages:
+        vcpu_util_total += avg(f"fc_vcpu {vcpu}")
+        vcpu += 1
+
+    return avg("firecracker"), vcpu_util_total
+
+
+def run_guest_cmd(ssh_connection, cmd, expected, use_json=False):
+    """Runs a shell command at the remote accessible via SSH"""
+    _, stdout, stderr = ssh_connection.run(cmd)
+    assert stderr == ""
+    stdout = stdout if not use_json else json.loads(stdout)
+    assert stdout == expected
+
+
+@retry(delay=0.5, tries=5, logger=None)
 def wait_process_termination(p_pid):
     """Wait for a process to terminate.
 
@@ -610,77 +605,13 @@ def get_firecracker_version_from_toml():
     """
     Return the version of the firecracker crate, from Cargo.toml.
 
-    Usually different from the output of `./firecracker --version`, if
+    Should be the same as the output of `./firecracker --version`, if
     the code has not been released.
     """
     cmd = "cd ../src/firecracker && cargo pkgid | cut -d# -f2 | cut -d: -f2"
-
-    rc, stdout, _ = run_cmd(cmd)
-    assert rc == 0
-
-    return stdout
-
-
-def compare_versions(first, second):
-    """
-    Compare two versions with format `X.Y.Z`.
-
-    :param first: first version string
-    :param second: second version string
-    :returns: 0 if equal, <0 if first < second, >0 if second < first
-    """
-    first = list(map(int, first.split(".")))
-    second = list(map(int, second.split(".")))
-
-    for i in range(3):
-        diff = first[i] - second[i]
-        if diff != 0:
-            return diff
-
-    return 0
-
-
-def sanitize_version(version):
-    """
-    Get rid of dirty version information.
-
-    Transform version from format `vX.Y.Z-W` to `X.Y.Z`.
-    """
-    if version[0].isalpha():
-        version = version[1:]
-
-    return version.split("-", 1)[0]
-
-
-def compare_dirty_versions(first, second):
-    """
-    Compare two versions out of which one is dirty.
-
-    We do not allow both versions to be dirty, because dirty info
-    does not reveal any ordering information.
-
-    :param first: first version string
-    :param second: second version string
-    :returns: 0 if equal, <0 if first < second, >0 if second < first
-    """
-    is_first_dirty = "-" in first
-    first = sanitize_version(first)
-
-    is_second_dirty = "-" in second
-    second = sanitize_version(second)
-
-    if is_first_dirty and is_second_dirty:
-        raise ValueError
-
-    diff = compare_versions(first, second)
-    if diff != 0:
-        return diff
-    if is_first_dirty:
-        return 1
-    if is_second_dirty:
-        return -1
-
-    return diff
+    rc, stdout, stderr = run_cmd(cmd)
+    assert rc == 0, stderr
+    return packaging.version.parse(stdout)
 
 
 def get_kernel_version(level=2):
@@ -702,7 +633,9 @@ def is_io_uring_supported():
 
     ...version.
     """
-    return compare_versions(get_kernel_version(), MIN_KERNEL_VERSION_FOR_IO_URING) >= 0
+    kv = packaging.version.parse(get_kernel_version())
+    min_kv = packaging.version.parse(MIN_KERNEL_VERSION_FOR_IO_URING)
+    return kv >= min_kv
 
 
 def generate_mmds_session_token(ssh_connection, ipv4_address, token_ttl):
@@ -711,8 +644,8 @@ def generate_mmds_session_token(ssh_connection, ipv4_address, token_ttl):
     cmd += " -X PUT"
     cmd += ' -H  "X-metadata-token-ttl-seconds: {}"'.format(token_ttl)
     cmd += " http://{}/latest/api/token".format(ipv4_address)
-    _, stdout, _ = ssh_connection.execute_command(cmd)
-    token = stdout.read()
+    _, stdout, _ = ssh_connection.run(cmd)
+    token = stdout
 
     return token
 
@@ -733,27 +666,28 @@ def generate_mmds_get_request(ipv4_address, token=None, app_json=True):
     return cmd
 
 
-def configure_mmds(
-    test_microvm, iface_ids, version=None, ipv4_address=None, fc_version=None
-):
+def configure_mmds(test_microvm, iface_ids, version=None, ipv4_address=None):
     """Configure mmds service."""
     mmds_config = {"network_interfaces": iface_ids}
 
     if version is not None:
         mmds_config["version"] = version
 
-    # For versions prior to v1.0.0, the mmds config only contains
-    # the ipv4_address.
-    if fc_version is not None and compare_versions(fc_version, "1.0.0") < 0:
-        mmds_config = {}
-
     if ipv4_address:
         mmds_config["ipv4_address"] = ipv4_address
 
-    response = test_microvm.mmds.put_config(json=mmds_config)
-    assert test_microvm.api_session.is_status_no_content(response.status_code)
-
+    response = test_microvm.api.mmds_config.put(**mmds_config)
     return response
+
+
+def populate_data_store(test_microvm, data_store):
+    """Populate the MMDS data store of the microvm with the provided data"""
+    response = test_microvm.api.mmds.get()
+    assert response.json() == {}
+
+    test_microvm.api.mmds.put(**data_store)
+    response = test_microvm.api.mmds.get()
+    assert response.json() == data_store
 
 
 def start_screen_process(screen_log, session_name, binary_path, binary_params):
@@ -781,16 +715,84 @@ def start_screen_process(screen_log, session_name, binary_path, binary_params):
         exceptions=RuntimeError,
         tries=30,
         delay=1,
+        logger=None,
     ).group(1)
 
-    binary_clone_pid = int(
-        open("/proc/{0}/task/{0}/children".format(screen_pid), encoding="utf-8")
-        .read()
-        .strip()
-    )
+    # Make sure the screen process launched successfully
+    # As the parent process for the binary.
+    screen_ps = psutil.Process(int(screen_pid))
+    wait_process_running(screen_ps)
 
     # Configure screen to flush stdout to file.
-    flush_cmd = 'screen -S {session} -X colon "logfile flush 0^M"'
-    run_cmd(flush_cmd.format(session=session_name))
+    run_cmd(FLUSH_CMD.format(session=session_name))
 
-    return screen_pid, binary_clone_pid
+    children_count = len(screen_ps.children())
+    if children_count != 1:
+        raise RuntimeError(
+            f"Failed to retrieve child process id for binary {binary_path}. "
+            f"screen session process had [{children_count}]"
+        )
+
+    return screen_pid, screen_ps.children()[0].pid
+
+
+def guest_run_fio_iteration(ssh_connection, iteration):
+    """Start FIO workload into a microVM."""
+    fio = """fio --filename=/dev/vda --direct=1 --rw=randread --bs=4k \
+        --ioengine=libaio --iodepth=16 --runtime=10 --numjobs=4 --time_based \
+        --group_reporting --name=iops-test-job --eta-newline=1 --readonly \
+        --output /tmp/fio{} > /dev/null &""".format(
+        iteration
+    )
+    exit_code, _, stderr = ssh_connection.run(fio)
+    assert exit_code == 0, stderr
+
+
+def check_filesystem(ssh_connection, disk_fmt, disk):
+    """Check for filesystem corruption inside a microVM."""
+    if disk_fmt == "squashfs":
+        return
+    cmd = "fsck.{} -n {}".format(disk_fmt, disk)
+    exit_code, _, stderr = ssh_connection.run(cmd)
+    assert exit_code == 0, stderr
+
+
+def check_entropy(ssh_connection):
+    """Check that we can get random numbers from /dev/hwrng"""
+    cmd = "dd if=/dev/hwrng of=/dev/null bs=4096 count=1"
+    exit_code, _, stderr = ssh_connection.run(cmd)
+    assert exit_code == 0, stderr
+
+
+@retry(delay=0.5, tries=5, logger=None)
+def wait_process_running(process):
+    """Wait for a process to run.
+
+    Will return successfully if the process is in
+    a running state and will otherwise raise an exception.
+    """
+    assert process.is_running()
+
+
+class Timeout:
+    """
+    A Context Manager to timeout sections of code.
+
+    >>> with Timeout(30):
+    >>>     time.sleep(35)
+    """
+
+    def __init__(self, seconds, msg="Timed out"):
+        self.seconds = seconds
+        self.msg = msg
+
+    def handle_timeout(self, signum, frame):
+        """Handle SIGALRM signal"""
+        raise TimeoutError()
+
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+
+    def __exit__(self, _type, _value, _traceback):
+        signal.alarm(0)

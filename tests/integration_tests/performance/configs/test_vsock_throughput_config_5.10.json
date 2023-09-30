@@ -1,363 +1,437 @@
 {
-    "time": 20,
-    "server_startup_time": 2,
-    "load_factor": 1,
-    "modes": {
-        "g2h": [
-            ""
-        ],
-        "h2g": [
-            "-R"
-        ],
-        "bd": [
-            "",
-            "-R"
-        ]
-    },
-    "protocols": [
-        {
-            "name": "tcp",
-            "omit": 3,
-            "payload_length": [
-                "1024K",
-                "DEFAULT",
-                "1024"
-            ]
-        }
-    ],
-    "measurements": {
-        "throughput": {
-            "unit": "Mbps",
-            "statistics": [
-                {
-                    "name": "total",
-                    "function": "Sum",
-                    "criteria": "EqualWith"
-                }
-            ]
-        },
-        "duration": {
-            "unit": "seconds",
-            "statistics": [
-                {
-                    "function": "Avg"
-                }
-            ]
-        },
-        "cpu_utilization_vmm": {
-            "unit": "percentage",
-            "statistics": [
-                {
-                    "name": "Avg",
-                    "function": "ValuePlaceholder",
-                    "criteria": "EqualWith"
-                }
-            ]
-        },
-        "cpu_utilization_vcpus_total": {
-            "unit": "percentage",
-            "statistics": [
-                {
-                    "name": "Avg",
-                    "function": "ValuePlaceholder",
-                    "criteria": "EqualWith"
-                }
-            ]
-        }
-    },
     "hosts": {
         "instances": {
+            "c7g.metal": {
+                "cpus": [
+                    {
+                        "baselines": {
+                            "cpu_utilization_vcpus_total": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "cpu_utilization_vmm": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 63
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 81
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 63
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 82
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 86
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 69
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 97
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 87
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 69
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 97
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 54
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 79
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 54
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 79
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 77
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 10,
+                                                    "target": 57
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 86
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 77
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 56
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 87
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "throughput": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 8863
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 7101
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 8879
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 6895
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 7575
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 8896
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 13,
+                                                    "target": 6973
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 7510
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 8937
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 10,
+                                                    "target": 7068
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 18777
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 6946
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 18812
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 6689
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 8010
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 23509
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 7591
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 7976
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 23336
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 7437
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "model": "ARM_NEOVERSE_V1"
+                    }
+                ]
+            },
             "m5d.metal": {
                 "cpus": [
                     {
-                        "model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
                         "baselines": {
-                            "throughput": {
-                                "vmlinux-4.14.bin": {
-                                    "ubuntu-18.04.ext4": {
-                                        "1vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 6768,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 6779,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2162,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 5186,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 5065,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 1794,
-                                                    "delta_percentage": 6
-                                                }
-                                            }
-                                        },
-                                        "2vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 7224,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 7246,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2793,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 5795,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 5735,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 2543,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 5769,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 5704,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 2526,
-                                                    "delta_percentage": 11
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                "vmlinux-5.10.bin": {
-                                    "ubuntu-18.04.ext4": {
-                                        "1vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 12245,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 12335,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2315,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 5324,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 5147,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 2191,
-                                                    "delta_percentage": 5
-                                                }
-                                            }
-                                        },
-                                        "2vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 16319,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 16404,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2780,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 6090,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 5894,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 2675,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 6086,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 6045,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 2740,
-                                                    "delta_percentage": 7
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
                             "cpu_utilization_vcpus_total": {
-                                "vmlinux-4.14.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 6,
+                                                    "target": 99
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 120
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 197,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 88,
-                                                    "delta_percentage": 13
+                                                    "delta_percentage": 5,
+                                                    "target": 198
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 133,
-                                                    "delta_percentage": 6
+                                                    "delta_percentage": 8,
+                                                    "target": 131
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 133,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 120
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 177,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 198
                                                 },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 121,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 122,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 196,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 132
                                                 }
                                             }
                                         }
                                     }
                                 },
-                                "vmlinux-5.10.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 6,
+                                                    "target": 99
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 105
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 197,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 197,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 81,
-                                                    "delta_percentage": 11
+                                                    "delta_percentage": 5,
+                                                    "target": 198
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 119,
-                                                    "delta_percentage": 6
+                                                    "delta_percentage": 7,
+                                                    "target": 119
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 119,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 105
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 172,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 198
                                                 },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 105,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 105,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 141,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 120
                                                 }
                                             }
                                         }
@@ -365,442 +439,322 @@
                                 }
                             },
                             "cpu_utilization_vmm": {
-                                "vmlinux-4.14.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 54,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 54,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 54,
-                                                    "delta_percentage": 9
+                                                    "delta_percentage": 9,
+                                                    "target": 55
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 60,
-                                                    "delta_percentage": 9
+                                                    "delta_percentage": 9,
+                                                    "target": 59
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 60,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 55
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 48,
-                                                    "delta_percentage": 10
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 60
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 63
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 66,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 66,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 75,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 8,
+                                                    "target": 67
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 78,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 10,
+                                                    "target": 77
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 78,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 63
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 68,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 67
                                                 },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 64,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 65,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 74,
-                                                    "delta_percentage": 9
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 77
                                                 }
                                             }
                                         }
                                     }
                                 },
-                                "vmlinux-5.10.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 41,
-                                                    "delta_percentage": 11
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 41,
-                                                    "delta_percentage": 11
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 57,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 11,
+                                                    "target": 41
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 62,
-                                                    "delta_percentage": 7
+                                                    "delta_percentage": 9,
+                                                    "target": 61
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 61,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 42
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 50,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 61
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 61
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 49,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 49,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 75,
-                                                    "delta_percentage": 7
+                                                    "delta_percentage": 7,
+                                                    "target": 49
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 69,
-                                                    "delta_percentage": 7
+                                                    "delta_percentage": 7,
+                                                    "target": 68
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 69,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 60
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 61,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 50
                                                 },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 69
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "throughput": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 6680
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 4971
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 6691
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 4817
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
                                                 "vsock-p1024K-bd": {
-                                                    "target": 61,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 8,
+                                                    "target": 5555
                                                 },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 61,
-                                                    "delta_percentage": 8
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 7080
                                                 },
-                                                "vsock-p1024-bd": {
-                                                    "target": 67,
-                                                    "delta_percentage": 9
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 5741
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 5493
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 7105
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 5638
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 12096
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 5050
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 12105
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 4959
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 5845
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 16425
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 5852
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 5789
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 16511
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 5709
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
+                        },
+                        "model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz"
                     },
                     {
-                        "model": "Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz",
                         "baselines": {
-                            "throughput": {
-                                "vmlinux-4.14.bin": {
-                                    "ubuntu-18.04.ext4": {
-                                        "1vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 5710,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 5716,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 1105,
-                                                    "delta_percentage": 29
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 3983,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 3888,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 303,
-                                                    "delta_percentage": 13
-                                                }
-                                            }
-                                        },
-                                        "2vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 6429,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 6425,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2340,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 4678,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 4618,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 1659,
-                                                    "delta_percentage": 10
-                                                },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 4434,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 4414,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 1351,
-                                                    "delta_percentage": 9
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                "vmlinux-5.10.bin": {
-                                    "ubuntu-18.04.ext4": {
-                                        "1vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 10707,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 11093,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 1631,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 4077,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 3933,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 1394,
-                                                    "delta_percentage": 5
-                                                }
-                                            }
-                                        },
-                                        "2vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 15917,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 15886,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2395,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 4785,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 4631,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 2158,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 4722,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 4667,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 1597,
-                                                    "delta_percentage": 5
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
                             "cpu_utilization_vcpus_total": {
-                                "vmlinux-4.14.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 6,
+                                                    "target": 99
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 113
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 197,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 117,
-                                                    "delta_percentage": 14
+                                                    "delta_percentage": 5,
+                                                    "target": 197
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 126,
-                                                    "delta_percentage": 7
+                                                    "delta_percentage": 10,
+                                                    "target": 119
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 126,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 5,
+                                                    "target": 115
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 182,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 198
                                                 },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 116,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 118,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 198,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 120
                                                 }
                                             }
                                         }
                                     }
                                 },
-                                "vmlinux-5.10.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 105
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 198,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 198,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 106,
-                                                    "delta_percentage": 10
+                                                    "delta_percentage": 5,
+                                                    "target": 197
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 116,
-                                                    "delta_percentage": 6
+                                                    "delta_percentage": 7,
+                                                    "target": 114
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 116,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 105
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 162,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 197
                                                 },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 105,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 105,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 136,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 114
                                                 }
                                             }
                                         }
@@ -808,446 +762,653 @@
                                 }
                             },
                             "cpu_utilization_vmm": {
-                                "vmlinux-4.14.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 54,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 54,
-                                                    "delta_percentage": 10
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 48,
-                                                    "delta_percentage": 9
+                                                    "delta_percentage": 9,
+                                                    "target": 55
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 66,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 9,
+                                                    "target": 69
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 65,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 11,
+                                                    "target": 56
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 33,
-                                                    "delta_percentage": 13
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 68
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 70
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 65,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 65,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 73,
-                                                    "delta_percentage": 10
+                                                    "delta_percentage": 7,
+                                                    "target": 67
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 80,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 18,
+                                                    "target": 72
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 80,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 71
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 60,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 67
                                                 },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 69,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 69,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 67,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 22,
+                                                    "target": 74
                                                 }
                                             }
                                         }
                                     }
                                 },
-                                "vmlinux-5.10.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 39,
-                                                    "delta_percentage": 10
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 42,
-                                                    "delta_percentage": 10
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 51,
-                                                    "delta_percentage": 9
+                                                    "delta_percentage": 11,
+                                                    "target": 41
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 68,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 7,
+                                                    "target": 70
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 67,
-                                                    "delta_percentage": 10
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 11,
+                                                    "target": 41
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 39,
-                                                    "delta_percentage": 12
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 69
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 9,
+                                                    "target": 69
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 53,
-                                                    "delta_percentage": 11
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 53,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 74,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 9,
+                                                    "target": 53
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 74,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 7,
+                                                    "target": 76
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 74,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 68
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 59,
-                                                    "delta_percentage": 10
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 53
                                                 },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 76
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "throughput": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 4879
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 3122
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 4863
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 3064
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
                                                 "vsock-p1024K-bd": {
-                                                    "target": 67,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 6,
+                                                    "target": 3560
                                                 },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 66,
-                                                    "delta_percentage": 9
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 5301
                                                 },
-                                                "vsock-p1024-bd": {
-                                                    "target": 56,
-                                                    "delta_percentage": 11
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 13,
+                                                    "target": 4193
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 3545
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 5299
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 11,
+                                                    "target": 4100
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 9811
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 3160
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 9840
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 3091
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 3790
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 14532
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 3897
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 3763
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 14513
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 3789
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
+                        },
+                        "model": "Intel(R) Xeon(R) Platinum 8175M CPU @ 2.50GHz"
+                    }
+                ]
+            },
+            "m6a.metal": {
+                "cpus": [
+                    {
+                        "baselines": {
+                            "cpu_utilization_vcpus_total": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 99
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 99
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 113
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 198
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 123
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 113
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 198
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 124
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 99
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 99
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 104
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 198
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 117
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 104
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 198
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 116
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "cpu_utilization_vmm": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 16,
+                                                    "target": 50
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 10,
+                                                    "target": 61
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 12,
+                                                    "target": 49
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 60
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 64
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 10,
+                                                    "target": 64
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 73
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 65
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 64
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 73
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 11,
+                                                    "target": 33
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 61
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 12,
+                                                    "target": 33
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 60
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 9,
+                                                    "target": 62
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 10,
+                                                    "target": 41
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 70
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 9,
+                                                    "target": 61
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 13,
+                                                    "target": 40
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 70
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "throughput": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 12,
+                                                    "target": 9183
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 5999
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 12,
+                                                    "target": 9194
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 5868
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 6974
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 14,
+                                                    "target": 10818
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 7416
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 6898
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 13,
+                                                    "target": 10743
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 7266
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 16345
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 6005
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 16417
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 5827
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 10,
+                                                    "target": 7175
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 24086
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 10,
+                                                    "target": 7461
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 7131
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 23831
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 7265
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "model": "AMD EPYC 7R13 48-Core Processor"
                     }
                 ]
             },
             "m6g.metal": {
                 "cpus": [
                     {
-                        "model": "ARM_NEOVERSE_N1",
                         "baselines": {
-                            "throughput": {
-                                "vmlinux-4.14.bin": {
-                                    "ubuntu-18.04.ext4": {
-                                        "1vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 6274,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 6287,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2136,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 5817,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 5616,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 1573,
-                                                    "delta_percentage": 8
-                                                }
-                                            }
-                                        },
-                                        "2vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 6364,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 6365,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2453,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 5491,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 5568,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 2901,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 5982,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 6033,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 3182,
-                                                    "delta_percentage": 6
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                "vmlinux-5.10.bin": {
-                                    "ubuntu-18.04.ext4": {
-                                        "1vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 13694,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 13716,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2080,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 5816,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 5559,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 2312,
-                                                    "delta_percentage": 5
-                                                }
-                                            }
-                                        },
-                                        "2vcpu_1024mb.json": {
-                                            "total": {
-                                                "vsock-p1024K-g2h": {
-                                                    "target": 17377,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 17432,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 2749,
-                                                    "delta_percentage": 10
-                                                },
-                                                "vsock-p1024K-h2g": {
-                                                    "target": 6046,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 6003,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 3764,
-                                                    "delta_percentage": 6
-                                                },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 6732,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 6736,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 3527,
-                                                    "delta_percentage": 6
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
                             "cpu_utilization_vcpus_total": {
-                                "vmlinux-4.14.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                    "delta_percentage": 4,
+                                                    "target": 100
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 4,
+                                                    "target": 100
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 197,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 171,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 197,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 }
                                             }
                                         }
                                     }
                                 },
-                                "vmlinux-5.10.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                    "delta_percentage": 4,
+                                                    "target": 100
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                    "delta_percentage": 4,
+                                                    "target": 100
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 100
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 198,
-                                                    "delta_percentage": 5
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 197,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 4,
+                                                    "target": 200
                                                 }
                                             }
                                         }
@@ -1255,155 +1416,589 @@
                                 }
                             },
                             "cpu_utilization_vmm": {
-                                "vmlinux-4.14.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 60,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 60,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 64,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 8,
+                                                    "target": 61
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 79,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 7,
+                                                    "target": 80
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 79,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 61
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 64,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 81
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 87
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 71,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 71,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 77,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 7,
+                                                    "target": 72
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 98,
-                                                    "delta_percentage": 6
+                                                    "delta_percentage": 6,
+                                                    "target": 99
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 87
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 91,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 72
                                                 },
-                                                "vsock-p1024K-bd": {
-                                                    "target": 87,
-                                                    "delta_percentage": 7
-                                                },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 87,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-p1024-bd": {
-                                                    "target": 99,
-                                                    "delta_percentage": 5
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
                                                 }
                                             }
                                         }
                                     }
                                 },
-                                "vmlinux-5.10.bin": {
-                                    "ubuntu-18.04.ext4": {
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
                                         "1vcpu_1024mb.json": {
                                             "Avg": {
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 56,
-                                                    "delta_percentage": 8
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 56,
-                                                    "delta_percentage": 10
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 63,
-                                                    "delta_percentage": 9
+                                                    "delta_percentage": 7,
+                                                    "target": 56
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 79,
-                                                    "delta_percentage": 8
+                                                    "delta_percentage": 7,
+                                                    "target": 80
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 79,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 56
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 67,
-                                                    "delta_percentage": 8
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 80
                                                 }
                                             }
                                         },
                                         "2vcpu_1024mb.json": {
                                             "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 78
+                                                },
                                                 "vsock-p1024K-g2h": {
-                                                    "target": 60,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-pDEFAULT-g2h": {
-                                                    "target": 60,
-                                                    "delta_percentage": 9
-                                                },
-                                                "vsock-p1024-g2h": {
-                                                    "target": 82,
-                                                    "delta_percentage": 7
+                                                    "delta_percentage": 8,
+                                                    "target": 64
                                                 },
                                                 "vsock-p1024K-h2g": {
-                                                    "target": 86,
-                                                    "delta_percentage": 7
+                                                    "delta_percentage": 7,
+                                                    "target": 87
                                                 },
-                                                "vsock-pDEFAULT-h2g": {
-                                                    "target": 88,
-                                                    "delta_percentage": 7
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 9,
+                                                    "target": 78
                                                 },
-                                                "vsock-p1024-h2g": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 64
                                                 },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 89
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "throughput": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 6264
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 5726
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 6281
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 5558
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
                                                 "vsock-p1024K-bd": {
-                                                    "target": 79,
-                                                    "delta_percentage": 7
+                                                    "delta_percentage": 6,
+                                                    "target": 6032
                                                 },
-                                                "vsock-pDEFAULT-bd": {
-                                                    "target": 80,
-                                                    "delta_percentage": 7
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 6231
                                                 },
-                                                "vsock-p1024-bd": {
-                                                    "target": 99,
-                                                    "delta_percentage": 6
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 5836
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 6050
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 6233
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 5890
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 13692
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 5688
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 13718
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 5502
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 6519
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 18367
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 5963
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 6487
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 18372
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 5965
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
+                        },
+                        "model": "ARM_NEOVERSE_N1"
+                    }
+                ]
+            },
+            "m6i.metal": {
+                "cpus": [
+                    {
+                        "baselines": {
+                            "cpu_utilization_vcpus_total": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 99
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 99
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 119
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 198
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 128
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 121
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 198
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 129
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 5,
+                                                    "target": 99
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 105
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 198
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 120
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 105
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 5,
+                                                    "target": 198
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 120
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "cpu_utilization_vmm": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 8,
+                                                    "target": 54
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 58
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 10,
+                                                    "target": 54
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 58
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 8,
+                                                    "target": 62
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 64
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 74
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 63
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 64
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 9,
+                                                    "target": 73
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 10,
+                                                    "target": 41
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 60
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 11,
+                                                    "target": 41
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 59
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "Avg": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 9,
+                                                    "target": 59
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 9,
+                                                    "target": 48
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 67
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 9,
+                                                    "target": 58
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 10,
+                                                    "target": 49
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 68
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "throughput": {
+                                "linux-4.14": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 7372
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 5126
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 7402
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 4996
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 5941
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 8637
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 6149
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 5867
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 7,
+                                                    "target": 8666
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 6,
+                                                    "target": 6047
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "linux-5.10": {
+                                    "ubuntu-22.04.squashfs": {
+                                        "1vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 12739
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 5246
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 12693
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 8,
+                                                    "target": 5103
+                                                }
+                                            }
+                                        },
+                                        "2vcpu_1024mb.json": {
+                                            "total": {
+                                                "vsock-p1024K-bd": {
+                                                    "delta_percentage": 7,
+                                                    "target": 6162
+                                                },
+                                                "vsock-p1024K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 17904
+                                                },
+                                                "vsock-p1024K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 6310
+                                                },
+                                                "vsock-p64K-bd": {
+                                                    "delta_percentage": 6,
+                                                    "target": 6112
+                                                },
+                                                "vsock-p64K-g2h": {
+                                                    "delta_percentage": 6,
+                                                    "target": 18021
+                                                },
+                                                "vsock-p64K-h2g": {
+                                                    "delta_percentage": 7,
+                                                    "target": 6092
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "model": "Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz"
                     }
                 ]
             }
+        }
+    },
+    "measurements": {
+        "cpu_utilization_vcpus_total": {
+            "statistics": [
+                {
+                    "criteria": "EqualWith",
+                    "function": "ValuePlaceholder",
+                    "name": "Avg"
+                }
+            ],
+            "unit": "percentage"
+        },
+        "cpu_utilization_vmm": {
+            "statistics": [
+                {
+                    "criteria": "EqualWith",
+                    "function": "ValuePlaceholder",
+                    "name": "Avg"
+                }
+            ],
+            "unit": "percentage"
+        },
+        "duration": {
+            "statistics": [
+                {
+                    "function": "Avg"
+                }
+            ],
+            "unit": "seconds"
+        },
+        "throughput": {
+            "statistics": [
+                {
+                    "criteria": "EqualWith",
+                    "function": "Sum",
+                    "name": "total"
+                }
+            ],
+            "unit": "Mbps"
         }
     }
 }

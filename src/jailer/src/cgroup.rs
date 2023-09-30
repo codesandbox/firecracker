@@ -3,6 +3,7 @@
 
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -10,7 +11,7 @@ use std::process;
 
 use regex::Regex;
 
-use crate::{readln_special, writeln_special, Error, Result};
+use crate::{readln_special, writeln_special, JailerError};
 
 const PROC_MOUNTS: &str = if cfg!(test) {
     "/tmp/firecracker/test/jailer/proc/mounts"
@@ -19,12 +20,14 @@ const PROC_MOUNTS: &str = if cfg!(test) {
 };
 
 // Holds information on a cgroup mount point discovered on the system
+#[derive(Debug)]
 struct CgroupMountPoint {
     dir: String,
     options: String,
 }
 
 // Allows creation of cgroups on the system for both versions
+#[derive(Debug)]
 pub struct CgroupBuilder {
     version: u8,
     hierarchies: HashMap<String, PathBuf>,
@@ -36,9 +39,9 @@ impl CgroupBuilder {
     // It will discover cgroup mount points and hierarchies configured
     // on the system and cache the info required to create cgroups later
     // within this hierarchies
-    pub fn new(ver: u8) -> Result<Self> {
+    pub fn new(ver: u8) -> Result<Self, JailerError> {
         if ver != 1 && ver != 2 {
-            return Err(Error::CgroupInvalidVersion(ver.to_string()));
+            return Err(JailerError::CgroupInvalidVersion(ver.to_string()));
         }
 
         let mut b = CgroupBuilder {
@@ -49,7 +52,7 @@ impl CgroupBuilder {
 
         // search PROC_MOUNTS for cgroup mount points
         let f = File::open(PROC_MOUNTS)
-            .map_err(|err| Error::FileOpen(PathBuf::from(PROC_MOUNTS), err))?;
+            .map_err(|err| JailerError::FileOpen(PathBuf::from(PROC_MOUNTS), err))?;
 
         // Regex courtesy of Filippo.
         // This will match on each line from /proc/mounts for both v1 and v2 mount points.
@@ -66,10 +69,10 @@ impl CgroupBuilder {
         //        cgroupv1 to determine what controllers are mounted at the location.
         let re = Regex::new(
             r"^([a-z2]*)[[:space:]](?P<dir>.*)[[:space:]]cgroup(?P<ver>2?)[[:space:]](?P<options>.*)[[:space:]]0[[:space:]]0$",
-        ).map_err(Error::RegEx)?;
+        ).map_err(JailerError::RegEx)?;
 
         for l in BufReader::new(f).lines() {
-            let l = l.map_err(|err| Error::ReadLine(PathBuf::from(PROC_MOUNTS), err))?;
+            let l = l.map_err(|err| JailerError::ReadLine(PathBuf::from(PROC_MOUNTS), err))?;
             if let Some(capture) = re.captures(&l) {
                 if ver == 2 && capture["ver"].len() == 1 {
                     // Found the cgroupv2 unified mountpoint; with cgroupsv2 there is only one
@@ -91,7 +94,7 @@ impl CgroupBuilder {
         }
 
         if b.hierarchies.is_empty() && b.mount_points.is_empty() {
-            Err(Error::CgroupHierarchyMissing(
+            Err(JailerError::CgroupHierarchyMissing(
                 "No hierarchy found for this cgroup version.".to_string(),
             ))
         } else {
@@ -106,13 +109,13 @@ impl CgroupBuilder {
         value: String,
         id: &str,
         parent_cg: &Path,
-    ) -> Result<Box<dyn Cgroup>> {
+    ) -> Result<Box<dyn Cgroup>, JailerError> {
         match self.version {
             1 => {
                 let controller = get_controller_from_filename(&file)?;
-                let path = self.get_v1_hierarchy_path(&controller)?;
+                let path = self.get_v1_hierarchy_path(controller)?;
 
-                let cgroup = CgroupV1::new(file, value, id, &parent_cg, &path)?;
+                let cgroup = CgroupV1::new(file, value, id, parent_cg, path)?;
                 Ok(Box::new(cgroup))
             }
             2 => {
@@ -121,19 +124,19 @@ impl CgroupBuilder {
                 let path = self
                     .hierarchies
                     .get("unified")
-                    .ok_or_else(|| Error::CgroupHierarchyMissing("unified".to_string()))?;
+                    .ok_or_else(|| JailerError::CgroupHierarchyMissing("unified".to_string()))?;
 
-                let cgroup = CgroupV2::new(file, value, id, &parent_cg, &path)?;
+                let cgroup = CgroupV2::new(file, value, id, parent_cg, path)?;
                 Ok(Box::new(cgroup))
             }
-            _ => Err(Error::CgroupInvalidVersion(self.version.to_string())),
+            _ => Err(JailerError::CgroupInvalidVersion(self.version.to_string())),
         }
     }
 
     // Returns the path to the root of the hierarchy for the controller specified
     // Cgroups for a controller are arranged in a hierarchy; multiple controllers
     // may share the same hierarchy
-    fn get_v1_hierarchy_path(&mut self, controller: &str) -> Result<&PathBuf> {
+    fn get_v1_hierarchy_path(&mut self, controller: &str) -> Result<&PathBuf, JailerError> {
         // First try and see if the path is already discovered.
         match self.hierarchies.entry(controller.to_string()) {
             Occupied(entry) => Ok(entry.into_mut()),
@@ -142,8 +145,7 @@ impl CgroupBuilder {
                 // we need to search through the mount points to find it
                 let mut path = None;
                 for m in self.mount_points.iter() {
-                    let v: Vec<&str> = m.options.split(',').collect();
-                    if v.contains(&controller) {
+                    if m.options.split(',').any(|x| x == controller) {
                         path = Some(PathBuf::from(&m.dir));
                         break;
                     }
@@ -152,31 +154,37 @@ impl CgroupBuilder {
                 // name was specified. Return an error in this case
                 match path {
                     Some(p) => Ok(entry.insert(p)),
-                    None => Err(Error::CgroupControllerUnavailable(controller.to_string())),
+                    None => Err(JailerError::CgroupControllerUnavailable(
+                        controller.to_string(),
+                    )),
                 }
             }
         }
     }
 }
 
+#[derive(Debug)]
 struct CgroupBase {
     file: String,      // file representing the cgroup (e.g cpuset.mems).
     value: String,     // value that will be written into the file.
     location: PathBuf, // microVM cgroup location for the specific controller.
 }
 
+#[derive(Debug)]
 pub struct CgroupV1 {
     base: CgroupBase,
     cg_parent_depth: u16, // depth of the nested cgroup hierarchy
 }
+
+#[derive(Debug)]
 pub struct CgroupV2(CgroupBase);
 
 pub trait Cgroup {
     // Write the cgroup value into the cgroup property file.
-    fn write_value(&self) -> Result<()>;
+    fn write_value(&self) -> Result<(), JailerError>;
 
     // This function will assign the process associated with the pid to the respective cgroup.
-    fn attach_pid(&self) -> Result<()>;
+    fn attach_pid(&self) -> Result<(), JailerError>;
 }
 
 // If we call inherit_from_parent_aux(.../A/B/C, file, condition), the following will happen:
@@ -209,7 +217,11 @@ pub trait Cgroup {
 // writing to /A/<parent_cgroup>/file, but we can still continue, because step 4) only cares about
 // the file no longer being empty, regardless of who actually got to populated its contents.
 
-fn inherit_from_parent_aux(path: &mut PathBuf, file_name: &str, retry_depth: u16) -> Result<()> {
+fn inherit_from_parent_aux(
+    path: &mut PathBuf,
+    file_name: &str,
+    retry_depth: u16,
+) -> Result<(), JailerError> {
     // The function with_file_name() replaces the last component of a path with the given name.
     let parent_file = path.with_file_name(file_name);
 
@@ -221,7 +233,7 @@ fn inherit_from_parent_aux(path: &mut PathBuf, file_name: &str, retry_depth: u16
             // according to how the Rust borrow checker operates right now :-s)
             let parent = parent_file
                 .parent()
-                .ok_or_else(|| Error::MissingParent(parent_file.clone()))?;
+                .ok_or_else(|| JailerError::MissingParent(parent_file.clone()))?;
 
             // Trying to avoid the race condition described above. We don't care about the result,
             // because we check once more if line.is_empty() after the end of this block.
@@ -230,7 +242,7 @@ fn inherit_from_parent_aux(path: &mut PathBuf, file_name: &str, retry_depth: u16
         }
 
         if line.is_empty() {
-            return Err(Error::CgroupInheritFromParent(
+            return Err(JailerError::CgroupInheritFromParent(
                 path.to_path_buf(),
                 file_name.to_string(),
             ));
@@ -246,18 +258,18 @@ fn inherit_from_parent_aux(path: &mut PathBuf, file_name: &str, retry_depth: u16
 
 // The path reference is &mut here because we do a push to get the destination file name. However,
 // a pop follows shortly after (see fn inherit_from_parent_aux), reverting to the original value.
-fn inherit_from_parent(path: &mut PathBuf, file_name: &str, depth: u16) -> Result<()> {
+fn inherit_from_parent(path: &mut PathBuf, file_name: &str, depth: u16) -> Result<(), JailerError> {
     inherit_from_parent_aux(path, file_name, depth)
 }
 
 // Extract the controller name from the cgroup file. The cgroup file must follow
 // this format: <cgroup_controller>.<cgroup_property>.
-fn get_controller_from_filename(file: &str) -> Result<&str> {
+fn get_controller_from_filename(file: &str) -> Result<&str, JailerError> {
     let v: Vec<&str> = file.split('.').collect();
 
     // Check format <cgroup_controller>.<cgroup_property>
     if v.len() < 2 {
-        return Err(Error::CgroupInvalidFile(file.to_string()));
+        return Err(JailerError::CgroupInvalidFile(file.to_string()));
     }
 
     Ok(v[0])
@@ -271,7 +283,7 @@ impl CgroupV1 {
         id: &str,
         parent_cg: &Path,
         controller_path: &Path,
-    ) -> Result<Self> {
+    ) -> Result<Self, JailerError> {
         let mut path = controller_path.to_path_buf();
         path.push(parent_cg);
         path.push(id);
@@ -292,12 +304,12 @@ impl CgroupV1 {
 }
 
 impl Cgroup for CgroupV1 {
-    fn write_value(&self) -> Result<()> {
+    fn write_value(&self) -> Result<(), JailerError> {
         let location = &mut self.base.location.clone();
 
         // Create the cgroup directory for the controller.
         fs::create_dir_all(&self.base.location)
-            .map_err(|err| Error::CreateDir(self.base.location.clone(), err))?;
+            .map_err(|err| JailerError::CreateDir(self.base.location.clone(), err))?;
 
         // Write the corresponding cgroup value. inherit_from_parent is used to
         // correctly propagate the value if not defined.
@@ -308,7 +320,7 @@ impl Cgroup for CgroupV1 {
         Ok(())
     }
 
-    fn attach_pid(&self) -> Result<()> {
+    fn attach_pid(&self) -> Result<(), JailerError> {
         let pid = process::id();
         let location = &self.base.location.join("tasks");
 
@@ -323,9 +335,9 @@ impl CgroupV2 {
     // To be able to use a leaf controller within a nested cgroup hierarchy,
     // the controller needs to be enabled by writing to the cgroup.subtree_control
     // of it's parent. This rule applies recursively.
-    fn write_all_subtree_control<P>(path: P, controller: &str) -> Result<()>
+    fn write_all_subtree_control<P>(path: P, controller: &str) -> Result<(), JailerError>
     where
-        P: AsRef<Path>,
+        P: AsRef<Path> + Debug,
     {
         let cg_subtree_ctrl = path.as_ref().join("cgroup.subtree_control");
         if !cg_subtree_ctrl.exists() {
@@ -339,7 +351,7 @@ impl CgroupV2 {
             }
         };
 
-        Self::write_all_subtree_control(&parent, &controller)?;
+        Self::write_all_subtree_control(parent, controller)?;
         writeln_special(&cg_subtree_ctrl, format!("+{}", &controller))
     }
 
@@ -347,7 +359,7 @@ impl CgroupV2 {
     // cgroup path specified by the mount_point parameter
     fn controller_available<P>(controller: &str, mount_point: P) -> bool
     where
-        P: AsRef<Path>,
+        P: AsRef<Path> + Debug,
     {
         let controller_list_file = mount_point.as_ref().join("cgroup.controllers");
         let f = match File::open(controller_list_file) {
@@ -356,8 +368,7 @@ impl CgroupV2 {
         };
 
         for l in BufReader::new(f).lines().flatten() {
-            let controllers: Vec<&str> = l.split(' ').collect();
-            if controllers.contains(&controller) {
+            if l.split(' ').any(|x| x == controller) {
                 return true;
             }
         }
@@ -371,7 +382,7 @@ impl CgroupV2 {
         id: &str,
         parent_cg: &Path,
         unified_path: &Path,
-    ) -> Result<Self> {
+    ) -> Result<Self, JailerError> {
         let controller = get_controller_from_filename(&file)?;
         let mut path = unified_path.to_path_buf();
 
@@ -384,24 +395,26 @@ impl CgroupV2 {
                 location: path,
             }))
         } else {
-            Err(Error::CgroupControllerUnavailable(controller.to_string()))
+            Err(JailerError::CgroupControllerUnavailable(
+                controller.to_string(),
+            ))
         }
     }
 }
 
 impl Cgroup for CgroupV2 {
-    fn write_value(&self) -> Result<()> {
+    fn write_value(&self) -> Result<(), JailerError> {
         let location = &mut self.0.location.clone();
         let controller = get_controller_from_filename(&self.0.file)?;
 
         // Create the cgroup directory for the controller.
         fs::create_dir_all(&self.0.location)
-            .map_err(|err| Error::CreateDir(self.0.location.clone(), err))?;
+            .map_err(|err| JailerError::CreateDir(self.0.location.clone(), err))?;
 
         // Ok to unwrap since the path was just created.
         let parent = location.parent().unwrap();
         // Enable the controller in all parent directories
-        CgroupV2::write_all_subtree_control(&parent, &controller)?;
+        CgroupV2::write_all_subtree_control(parent, controller)?;
 
         location.push(&self.0.file);
         writeln_special(location, &self.0.value)?;
@@ -409,7 +422,7 @@ impl Cgroup for CgroupV2 {
         Ok(())
     }
 
-    fn attach_pid(&self) -> Result<()> {
+    fn attach_pid(&self) -> Result<(), JailerError> {
         let pid = process::id();
         let location = &self.0.location.join("cgroup.procs");
 
@@ -421,12 +434,14 @@ impl Cgroup for CgroupV2 {
 
 #[cfg(test)]
 pub mod test_util {
+    use std::fmt::Debug;
     use std::fs::{self, File, OpenOptions};
     use std::io::Write;
     use std::path::{Path, PathBuf};
 
     use super::PROC_MOUNTS;
 
+    #[derive(Debug)]
     pub struct MockCgroupFs {
         mounts_file: File,
     }
@@ -438,13 +453,10 @@ pub mod test_util {
         const MOCK_PROCDIR: &'static str = "/tmp/firecracker/test/jailer/proc";
         pub const MOCK_SYS_CGROUPS_DIR: &'static str = "/tmp/firecracker/test/jailer/sys_cgroup";
 
-        pub fn create_file_with_contents<P>(
+        pub fn create_file_with_contents<P: AsRef<Path> + Debug>(
             filename: P,
             contents: &str,
-        ) -> std::result::Result<(), std::io::Error>
-        where
-            P: AsRef<Path>,
-        {
+        ) -> std::result::Result<(), std::io::Error> {
             let mut file = OpenOptions::new()
                 .read(true)
                 .write(true)
@@ -478,7 +490,7 @@ pub mod test_util {
                 Self::MOCK_SYS_CGROUPS_DIR
             )?;
             let cg_unified_path = PathBuf::from(format!("{}/unified", Self::MOCK_SYS_CGROUPS_DIR));
-            let _ = fs::create_dir_all(&cg_unified_path)?;
+            fs::create_dir_all(&cg_unified_path)?;
             Self::create_file_with_contents(
                 cg_unified_path.join("cgroup.controllers"),
                 "cpuset cpu io memory pids",
@@ -521,6 +533,7 @@ pub mod test_util {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Debug;
     use std::io::{BufReader, Write};
     use std::path::PathBuf;
 
@@ -533,7 +546,7 @@ mod tests {
     // Utility function to read the first line in a file
     fn read_first_line<P>(filename: P) -> std::result::Result<String, std::io::Error>
     where
-        P: AsRef<Path>,
+        P: AsRef<Path> + Debug,
     {
         let file = File::open(filename)?;
         let mut reader = BufReader::new(file);
@@ -552,23 +565,23 @@ mod tests {
     #[test]
     fn test_cgroup_builder_v1() {
         let mut mock_cgroups = MockCgroupFs::new().unwrap();
-        assert!(!mock_cgroups.add_v1_mounts().is_err());
+        assert!(mock_cgroups.add_v1_mounts().is_ok());
         let builder = CgroupBuilder::new(1);
-        assert!(!builder.is_err());
+        assert!(builder.is_ok());
     }
 
     #[test]
     fn test_cgroup_builder_v2() {
         let mut mock_cgroups = MockCgroupFs::new().unwrap();
-        assert!(!mock_cgroups.add_v2_mounts().is_err());
+        assert!(mock_cgroups.add_v2_mounts().is_ok());
         let builder = CgroupBuilder::new(2);
-        assert!(!builder.is_err());
+        assert!(builder.is_ok());
     }
 
     #[test]
     fn test_cgroup_builder_v2_with_v1_mounts() {
         let mut mock_cgroups = MockCgroupFs::new().unwrap();
-        assert!(!mock_cgroups.add_v1_mounts().is_err());
+        assert!(mock_cgroups.add_v1_mounts().is_ok());
         let builder = CgroupBuilder::new(2);
         assert!(builder.is_err());
     }
@@ -576,7 +589,7 @@ mod tests {
     #[test]
     fn test_cgroup_builder_v1_with_v2_mounts() {
         let mut mock_cgroups = MockCgroupFs::new().unwrap();
-        assert!(!mock_cgroups.add_v2_mounts().is_err());
+        assert!(mock_cgroups.add_v2_mounts().is_ok());
         let builder = CgroupBuilder::new(1);
         assert!(builder.is_err());
     }
@@ -584,8 +597,8 @@ mod tests {
     #[test]
     fn test_cgroup_build() {
         let mut mock_cgroups = MockCgroupFs::new().unwrap();
-        assert!(!mock_cgroups.add_v1_mounts().is_err());
-        assert!(!mock_cgroups.add_v2_mounts().is_err());
+        assert!(mock_cgroups.add_v1_mounts().is_ok());
+        assert!(mock_cgroups.add_v2_mounts().is_ok());
 
         for v in &[1, 2] {
             let mut builder = CgroupBuilder::new(*v).unwrap();
@@ -596,15 +609,15 @@ mod tests {
                 "101",
                 Path::new("fc_test_cg"),
             );
-            assert!(!cg.is_err());
+            assert!(cg.is_ok());
         }
     }
 
     #[test]
     fn test_cgroup_build_invalid() {
         let mut mock_cgroups = MockCgroupFs::new().unwrap();
-        assert!(!mock_cgroups.add_v1_mounts().is_err());
-        assert!(!mock_cgroups.add_v2_mounts().is_err());
+        assert!(mock_cgroups.add_v1_mounts().is_ok());
+        assert!(mock_cgroups.add_v2_mounts().is_ok());
 
         for v in &[1, 2] {
             let mut builder = CgroupBuilder::new(*v).unwrap();
@@ -621,9 +634,9 @@ mod tests {
     #[test]
     fn test_cgroup_v2_write_value() {
         let mut mock_cgroups = MockCgroupFs::new().unwrap();
-        assert!(!mock_cgroups.add_v2_mounts().is_err());
+        assert!(mock_cgroups.add_v2_mounts().is_ok());
         let builder = CgroupBuilder::new(2);
-        assert!(!builder.is_err());
+        assert!(builder.is_ok());
 
         let mut builder = CgroupBuilder::new(2).unwrap();
         let cg = builder.new_cgroup(
@@ -632,7 +645,7 @@ mod tests {
             "101",
             Path::new("fc_test_cgv2"),
         );
-        assert!(!cg.is_err());
+        assert!(cg.is_ok());
         let cg = cg.unwrap();
 
         let cg_root = PathBuf::from(format!("{}/unified", MockCgroupFs::MOCK_SYS_CGROUPS_DIR));
@@ -651,7 +664,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(!cg.write_value().is_err());
+        assert!(cg.write_value().is_ok());
 
         // check that the value was written correctly
         assert!(cg_root.join("fc_test_cgv2/101/cpuset.mems").exists());

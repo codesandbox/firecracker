@@ -4,9 +4,10 @@
 """Module for multiple statistics consumers."""
 
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from numbers import Number
 from typing import Any, Callable
-from collections import defaultdict
+
 from framework.utils import ExceptionAggregator
 
 from .criteria import CriteriaException
@@ -99,7 +100,7 @@ class Consumer(ABC):
         """Reset the results of this consumer, used in a previous exercise."""
         self._results = defaultdict()
 
-    def process(self, fail_fast=False) -> (dict, dict):
+    def process(self, check=True, fail_fast=False) -> (dict, dict):
         """Generate statistics as a dictionary."""
         self._validate()
         for ms_name in self._results:
@@ -117,16 +118,24 @@ class Consumer(ABC):
                             "measurement."
                         )
                         continue
-                    self._statistics[ms_name][st_def.name] = self._statistics[ms_name][
-                        st_def.name
-                    ] = {"value": st_def.func(self._results[ms_name][self.DATA_KEY])}
+                    self._statistics[ms_name][st_def.name] = {
+                        "value": st_def.func(self._results[ms_name][self.DATA_KEY])
+                    }
                 else:
                     self._statistics[ms_name][st_def.name] = {
                         "value": self._results[ms_name][st_def.name]
                     }
 
                 pass_criteria = st_def.pass_criteria
-                if pass_criteria:
+                if check and pass_criteria:
+                    # if the statistic definition contains a criteria but the
+                    # corresponding baseline is not defined, the test should fail.
+                    if pass_criteria.baseline == {}:
+                        self._failure_aggregator.add_row(
+                            f"Baseline data is not defined for '{ms_name}/{st_def.name}"
+                            f"/{pass_criteria.name}'."
+                        )
+                        continue
                     self._statistics[ms_name][st_def.name]["pass_criteria"] = {
                         pass_criteria.name: pass_criteria.baseline
                     }
@@ -168,12 +177,9 @@ class LambdaConsumer(Consumer):
         """Initialize the LambdaConsumer."""
         super().__init__(metadata_provider)
         self._func = func
-        self._func_kwargs = func_kwargs
+        self._func_kwargs = func_kwargs or {}
 
     def ingest(self, iteration, raw_data):
-        """Execute the function with or without arguments."""
+        """Execute the function."""
         self._iteration = iteration
-        if self._func_kwargs:
-            self._func(self, raw_data, **self._func_kwargs)
-        else:
-            self._func(self, raw_data)
+        return self._func(self, raw_data, **self._func_kwargs)
