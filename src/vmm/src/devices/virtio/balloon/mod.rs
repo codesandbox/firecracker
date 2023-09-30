@@ -12,21 +12,21 @@ mod util;
 use utils::vm_memory::GuestMemoryError;
 
 pub use self::device::{Balloon, BalloonConfig, BalloonStats};
+use crate::devices::virtio::FIRECRACKER_MAX_QUEUE_SIZE;
 
 /// Device ID used in MMIO device identification.
 /// Because Balloon is unique per-vm, this ID can be hardcoded.
 pub const BALLOON_DEV_ID: &str = "balloon";
 /// The size of the config space.
 pub const BALLOON_CONFIG_SPACE_SIZE: usize = 8;
-pub const BALLOON_QUEUE_SIZE: u16 = 256;
 pub const BALLOON_REPORTING_QUEUE_SIZE: u16 = 32;
 /// Number of virtio queues.
 pub const BALLOON_NUM_QUEUES: usize = 4;
 pub const BALLOON_QUEUE_SIZES: &[u16] = &[
-    BALLOON_QUEUE_SIZE,
-    BALLOON_QUEUE_SIZE,
-    BALLOON_QUEUE_SIZE,
-    BALLOON_QUEUE_SIZE,
+    FIRECRACKER_MAX_QUEUE_SIZE,
+    FIRECRACKER_MAX_QUEUE_SIZE,
+    FIRECRACKER_MAX_QUEUE_SIZE,
+    FIRECRACKER_MAX_QUEUE_SIZE,
 ];
 // Number of 4K pages in a MiB.
 pub const MIB_TO_4K_PAGES: u32 = 256;
