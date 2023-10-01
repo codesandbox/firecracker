@@ -17,17 +17,17 @@ use virtio_gen::virtio_blk::VIRTIO_F_VERSION_1;
 use super::super::{ActivateError, DeviceState, Queue, VirtioDevice, TYPE_BALLOON};
 use super::util::{compact_page_frame_numbers, remove_range};
 use super::{
-    BALLOON_DEV_ID, BALLOON_NUM_QUEUES, BALLOON_QUEUE_SIZES, DEFLATE_INDEX, INFLATE_INDEX,
-    MAX_PAGES_IN_DESC, MAX_PAGE_COMPACT_BUFFER, MIB_TO_4K_PAGES, STATS_INDEX,
-    VIRTIO_BALLOON_F_DEFLATE_ON_OOM, VIRTIO_BALLOON_F_STATS_VQ, VIRTIO_BALLOON_PFN_SHIFT,
-    VIRTIO_BALLOON_S_AVAIL, VIRTIO_BALLOON_S_CACHES, VIRTIO_BALLOON_S_HTLB_PGALLOC,
-    VIRTIO_BALLOON_S_HTLB_PGFAIL, VIRTIO_BALLOON_S_MAJFLT, VIRTIO_BALLOON_S_MEMFREE,
-    VIRTIO_BALLOON_S_MEMTOT, VIRTIO_BALLOON_S_MINFLT, VIRTIO_BALLOON_S_SWAP_IN,
-    VIRTIO_BALLOON_S_SWAP_OUT,
+    BALLOON_DEV_ID, BALLOON_NUM_QUEUES, BALLOON_QUEUE_SIZES, DEFLATE_INDEX,
+    FREE_PAGE_REPORTING_INDEX, INFLATE_INDEX, MAX_PAGES_IN_DESC, MAX_PAGE_COMPACT_BUFFER,
+    MIB_TO_4K_PAGES, STATS_INDEX, VIRTIO_BALLOON_F_DEFLATE_ON_OOM, VIRTIO_BALLOON_F_REPORTING,
+    VIRTIO_BALLOON_F_STATS_VQ, VIRTIO_BALLOON_PFN_SHIFT, VIRTIO_BALLOON_S_AVAIL,
+    VIRTIO_BALLOON_S_CACHES, VIRTIO_BALLOON_S_HTLB_PGALLOC, VIRTIO_BALLOON_S_HTLB_PGFAIL,
+    VIRTIO_BALLOON_S_MAJFLT, VIRTIO_BALLOON_S_MEMFREE, VIRTIO_BALLOON_S_MEMTOT,
+    VIRTIO_BALLOON_S_MINFLT, VIRTIO_BALLOON_S_SWAP_IN, VIRTIO_BALLOON_S_SWAP_OUT,
 };
 use crate::devices::virtio::balloon::BalloonError;
 use crate::devices::virtio::{IrqTrigger, IrqType};
-use crate::logger::{IncMetric, METRICS};
+use crate::logger::{self, IncMetric, METRICS};
 
 const SIZE_OF_U32: usize = std::mem::size_of::<u32>();
 const SIZE_OF_STAT: usize = std::mem::size_of::<BalloonStat>();
@@ -215,7 +215,12 @@ impl Balloon {
             avail_features |= 1u64 << VIRTIO_BALLOON_F_STATS_VQ;
         }
 
+        avail_features |= 1u64 << VIRTIO_BALLOON_F_REPORTING;
+
+        logger::debug!("balloon: registering balloon device");
+
         let queue_evts = [
+            EventFd::new(libc::EFD_NONBLOCK).map_err(BalloonError::EventFd)?,
             EventFd::new(libc::EFD_NONBLOCK).map_err(BalloonError::EventFd)?,
             EventFd::new(libc::EFD_NONBLOCK).map_err(BalloonError::EventFd)?,
             EventFd::new(libc::EFD_NONBLOCK).map_err(BalloonError::EventFd)?,
@@ -277,6 +282,14 @@ impl Balloon {
     pub(crate) fn process_stats_timer_event(&mut self) -> Result<(), BalloonError> {
         self.stats_timer.read();
         self.trigger_stats_update()
+    }
+
+    pub(crate) fn process_free_page_report_event(&mut self) -> Result<(), BalloonError> {
+        logger::debug!("balloon: received free page report event");
+        self.queue_evts[FREE_PAGE_REPORTING_INDEX]
+            .read()
+            .map_err(BalloonError::EventFd)?;
+        self.process_free_page_reporting_queue()
     }
 
     pub(crate) fn process_inflate(&mut self) -> Result<(), BalloonError> {
@@ -430,6 +443,50 @@ impl Balloon {
         Ok(())
     }
 
+    pub(crate) fn process_free_page_reporting_queue(
+        &mut self,
+    ) -> std::result::Result<(), BalloonError> {
+        logger::debug!("balloon: processing free page reporting queue");
+        let mem = self.device_state.mem().unwrap();
+
+        let mut total_removed = 0;
+        let queue = &mut self.queues[FREE_PAGE_REPORTING_INDEX];
+        let mut needs_interrupt = false;
+
+        while let Some(head) = queue.pop(mem) {
+            let head_index = head.index;
+            let head_mem = head.mem;
+
+            let mut last_desc = Some(head);
+            while let Some(desc) = last_desc {
+                total_removed += desc.len;
+                if let Err(err) =
+                    remove_range(desc.mem, (desc.addr, desc.len as u64), self.restored)
+                {
+                    error!("balloon: failed to remove range: {:?}", err);
+                };
+                last_desc = desc.next_descriptor();
+            }
+
+            // Acknowledge the receipt of the descriptor.
+            queue
+                .add_used(head_mem, head_index, 0)
+                .map_err(BalloonError::Queue)?;
+
+            logger::debug!("balloon: adding to the queue");
+
+            needs_interrupt = true;
+        }
+
+        logger::debug!("balloon: total removed: {}MiB", total_removed >> 20);
+
+        if needs_interrupt {
+            self.signal_used_queue()?;
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn signal_used_queue(&self) -> Result<(), BalloonError> {
         self.irq_trigger.trigger_irq(IrqType::Vring).map_err(|err| {
             METRICS.balloon.event_fails.inc();
@@ -441,6 +498,7 @@ impl Balloon {
     pub fn process_virtio_queues(&mut self) {
         let _ = self.process_inflate();
         let _ = self.process_deflate_queue();
+        let _ = self.process_free_page_reporting_queue();
     }
 
     /// Provides the ID of this balloon device.
@@ -612,8 +670,8 @@ impl VirtioDevice for Balloon {
         let end = start.and_then(|s| s.checked_add(data.len()));
         let Some(dst) = start
             .zip(end)
-            .and_then(|(start, end)| config_space_bytes.get_mut(start..end)) else
-        {
+            .and_then(|(start, end)| config_space_bytes.get_mut(start..end))
+        else {
             error!("Failed to write config space");
             return;
         };

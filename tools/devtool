@@ -310,6 +310,7 @@ run_devctr() {
         --volume /dev:/dev \
         --volume "$FC_ROOT_DIR:$CTR_FC_ROOT_DIR:z" \
         --tmpfs /srv:exec,dev,size=32G \
+        --mount type=bind,source=/usr/include/linux/userfaultfd.h,target=/usr/include/linux/userfaultfd.h \
         -v /boot:/boot \
         --env PYTHONDONTWRITEBYTECODE=1 \
         "$DEVCTR_IMAGE" "${ctr_args[@]}"

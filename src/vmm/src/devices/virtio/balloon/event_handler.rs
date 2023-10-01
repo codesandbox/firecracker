@@ -9,7 +9,9 @@ use utils::epoll::EventSet;
 
 use crate::devices::report_balloon_event_fail;
 use crate::devices::virtio::balloon::device::Balloon;
-use crate::devices::virtio::{VirtioDevice, DEFLATE_INDEX, INFLATE_INDEX, STATS_INDEX};
+use crate::devices::virtio::{
+    VirtioDevice, DEFLATE_INDEX, FREE_PAGE_REPORTING_INDEX, INFLATE_INDEX, STATS_INDEX,
+};
 
 impl Balloon {
     fn register_runtime_events(&self, ops: &mut EventOps) {
@@ -26,6 +28,15 @@ impl Balloon {
             if let Err(err) = ops.add(Events::new(&self.stats_timer, EventSet::IN)) {
                 error!("Failed to register stats timerfd event: {}", err);
             }
+        }
+        if let Err(err) = ops.add(Events::new(
+            &self.queue_evts[FREE_PAGE_REPORTING_INDEX],
+            EventSet::IN,
+        )) {
+            error!(
+                "Failed to register free page reporting queue event: {}",
+                err
+            );
         }
     }
 
@@ -65,6 +76,7 @@ impl MutEventSubscriber for Balloon {
             let virtq_inflate_ev_fd = self.queue_evts[INFLATE_INDEX].as_raw_fd();
             let virtq_deflate_ev_fd = self.queue_evts[DEFLATE_INDEX].as_raw_fd();
             let virtq_stats_ev_fd = self.queue_evts[STATS_INDEX].as_raw_fd();
+            let free_page_report_ev_fd = self.queue_evts[FREE_PAGE_REPORTING_INDEX].as_raw_fd();
             let stats_timer_fd = self.stats_timer.as_raw_fd();
             let activate_fd = self.activate_evt.as_raw_fd();
 
@@ -81,6 +93,9 @@ impl MutEventSubscriber for Balloon {
                     .unwrap_or_else(report_balloon_event_fail),
                 _ if source == stats_timer_fd => self
                     .process_stats_timer_event()
+                    .unwrap_or_else(report_balloon_event_fail),
+                _ if source == free_page_report_ev_fd => self
+                    .process_free_page_report_event()
                     .unwrap_or_else(report_balloon_event_fail),
                 _ if activate_fd == source => self.process_activate_event(ops),
                 _ => {

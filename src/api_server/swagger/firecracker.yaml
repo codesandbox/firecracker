@@ -376,6 +376,29 @@ paths:
           description: Internal server error
           schema:
             $ref: "#/definitions/Error"
+  
+  /memory-backend:
+    put:
+      summary: Configures a memory backend to sync the memory changes from during the runtime of the vm
+      operationId: putMemoryBackend
+      parameters:
+        - name: body
+          in: body
+          description: The memory backend to use
+          required: true
+          schema:
+            $ref: "#/definitions/MemoryBackend"
+      responses:
+        204:
+          description: Memory backend configured
+        400:
+          description: Memory backend failed
+          schema:
+            $ref: "#/definitions/Error"
+        default:
+          description: Internal server error.
+          schema:
+            $ref: "#/definitions/Error"
 
   /metrics:
     put:

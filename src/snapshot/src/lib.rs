@@ -218,9 +218,10 @@ impl Snapshot {
         object
             .serialize(&mut writer, &self.version_map, self.target_version)
             .map_err(Error::Versionize)?;
-        writer
-            .flush()
-            .map_err(|ref err| Error::Io(err.raw_os_error().unwrap_or(libc::EINVAL)))
+        // writer
+        //     .flush()
+        //     .map_err(|ref err| Error::Io(err.raw_os_error().unwrap_or(libc::EINVAL)))
+        Ok(())
     }
 
     // Returns the current snapshot format version.

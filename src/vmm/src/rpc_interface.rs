@@ -41,7 +41,9 @@ use crate::vmm_config::mmds::{MmdsConfig, MmdsConfigError};
 use crate::vmm_config::net::{
     NetworkInterfaceConfig, NetworkInterfaceError, NetworkInterfaceUpdateConfig,
 };
-use crate::vmm_config::snapshot::{CreateSnapshotParams, LoadSnapshotParams, SnapshotType};
+use crate::vmm_config::snapshot::{
+    CreateSnapshotParams, LoadSnapshotParams, MemBackendConfig, SnapshotType,
+};
 use crate::vmm_config::vsock::{VsockConfigError, VsockDeviceConfig};
 use crate::vmm_config::{self, RateLimiterUpdate};
 use crate::{EventManager, FcExitCode};
@@ -103,6 +105,9 @@ pub enum VmmAction {
     /// `BalloonDeviceConfig` as input. This action can only be called before the microVM
     /// has booted.
     SetBalloonDevice(BalloonDeviceConfig),
+    /// Set the memory backend for the VM. The VM will use this backend to handle its
+    /// memory. This action can only be called before the microVM has booted.
+    SetMemoryBackend(MemBackendConfig),
     /// Set the MMDS configuration.
     SetMmdsConfiguration(MmdsConfig),
     /// Set the vsock device or update the one that already exists using the
@@ -434,6 +439,7 @@ impl<'a> PrebootApiController<'a> {
             SetBalloonDevice(config) => self.set_balloon_device(config),
             SetVsockDevice(config) => self.set_vsock_device(config),
             SetMmdsConfiguration(config) => self.set_mmds_config(config),
+            SetMemoryBackend(config) => self.set_memory_backend(config),
             StartMicroVm => self.start_microvm(),
             UpdateVmConfiguration(config) => self.update_vm_config(config),
             SetEntropyDevice(config) => self.set_entropy_device(config),
@@ -458,6 +464,13 @@ impl<'a> PrebootApiController<'a> {
             .get_config()
             .map(VmmData::BalloonConfig)
             .map_err(VmmActionError::BalloonConfig)
+    }
+
+    fn set_memory_backend(&mut self, cfg: MemBackendConfig) -> Result<VmmData, VmmActionError> {
+        self.boot_path = true;
+        self.vm_resources.memory_backend = Some(cfg);
+
+        Ok(VmmData::Empty)
     }
 
     fn insert_block_device(&mut self, cfg: BlockDeviceConfig) -> Result<VmmData, VmmActionError> {
@@ -690,6 +703,7 @@ impl RuntimeApiController {
             | LoadSnapshot(_)
             | PutCpuConfiguration(_)
             | SetBalloonDevice(_)
+            | SetMemoryBackend(_)
             | SetVsockDevice(_)
             | SetMmdsConfiguration(_)
             | SetEntropyDevice(_)
@@ -760,14 +774,14 @@ impl RuntimeApiController {
     ) -> Result<VmmData, VmmActionError> {
         log_dev_preview_warning("Virtual machine snapshots", None);
 
-        if create_params.snapshot_type == SnapshotType::Diff
-            && !self.vm_resources.track_dirty_pages()
-        {
-            return Err(VmmActionError::NotSupported(
-                "Diff snapshots are not allowed on uVMs with dirty page tracking disabled."
-                    .to_string(),
-            ));
-        }
+        // if create_params.snapshot_type == SnapshotType::Diff
+        //     && !self.vm_resources.track_dirty_pages()
+        // {
+        //     return Err(VmmActionError::NotSupported(
+        //         "Diff snapshots are not allowed on uVMs with dirty page tracking disabled."
+        //             .to_string(),
+        //     ));
+        // }
 
         let mut locked_vmm = self.vmm.lock().unwrap();
         let vm_info = VmInfo::from(&self.vm_resources);
@@ -920,6 +934,7 @@ mod tests {
         pub boot_timer: bool,
         // when `true`, all self methods are forced to fail
         pub force_errors: bool,
+        pub memory_backend: Option<MemBackendConfig>,
     }
 
     impl MockVmRes {

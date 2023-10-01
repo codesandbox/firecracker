@@ -28,11 +28,16 @@ vmm = { path = "../vmm" }
 
 [dev-dependencies]
 cargo_toml = "0.16.0"
-regex = { version = "1.9.5", default-features = false, features = ["std", "unicode-perl"] }
+regex = { version = "1.9.5", default-features = false, features = [
+  "std",
+  "unicode-perl",
+] }
 
 # Dev-Dependencies for uffd examples
 serde = { version = "1.0.188", features = ["derive"] }
-userfaultfd = "0.7.0"
+userfaultfd = { git = "https://github.com/codesandbox/userfaultfd-rs.git", rev = "27b2ff3bc71774b79338afca051d49cb07146d90", features = [
+  "linux5_7",
+] }
 
 [build-dependencies]
 bincode = "1.2.1"

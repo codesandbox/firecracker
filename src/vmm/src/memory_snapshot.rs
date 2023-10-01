@@ -5,7 +5,9 @@
 
 use std::fs::File;
 use std::io::SeekFrom;
+use std::time::Instant;
 
+use libc::{MAP_SHARED, PROT_WRITE};
 use utils::vm_memory::{
     Bitmap, FileOffset, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap,
     GuestMemoryRegion, MemoryRegionAddress, WriteVolatile,
@@ -110,6 +112,9 @@ impl SnapshotMemory for GuestMemoryMmap {
         let mut writer_offset = 0;
         let page_size = get_page_size()?;
 
+        let start = Instant::now();
+        let mut total_written = 0;
+
         self.iter()
             .enumerate()
             .try_for_each(|(slot, region)| {
@@ -141,7 +146,6 @@ impl SnapshotMemory for GuestMemoryMmap {
                                     write_size,
                                 )?,
                             )?;
-
                             write_size = 0;
                         }
                     }
@@ -151,6 +155,12 @@ impl SnapshotMemory for GuestMemoryMmap {
                     writer.write_all_volatile(
                         &region.get_slice(MemoryRegionAddress(dirty_batch_start), write_size)?,
                     )?;
+                    total_written += write_size;
+                    eprintln!(
+                        "writing {}B took {}ms",
+                        write_size,
+                        start.elapsed().as_millis()
+                    );
                 }
                 writer_offset += region.len();
                 if let Some(bitmap) = firecracker_bitmap {
@@ -182,6 +192,117 @@ impl SnapshotMemory for GuestMemoryMmap {
         utils::vm_memory::create_guest_memory(&regions, track_dirty_pages)
             .map_err(SnapshotMemoryError::CreateMemory)
     }
+}
+
+/// Dumps all pages of GuestMemoryMmap present in `dirty_bitmap` to a writer.
+pub fn mem_dump_dirty(
+    mem_map: &GuestMemoryMmap,
+    fd: i32,
+    len: usize,
+    dirty_bitmap: &DirtyBitmap,
+) -> std::result::Result<(), SnapshotMemoryError> {
+    let mut writer_offset = 0_u64;
+    let page_size = get_page_size()?;
+
+    let start = Instant::now();
+    let mut total_written = 0;
+
+    let source_map =
+        unsafe { libc::mmap(std::ptr::null_mut(), len, PROT_WRITE, MAP_SHARED, fd, 0) };
+
+    let res = mem_map
+        .iter()
+        .enumerate()
+        .try_for_each(|(slot, region)| {
+            let kvm_bitmap = dirty_bitmap.get(&slot).unwrap();
+            let firecracker_bitmap = region.bitmap();
+            let mut write_size = 0;
+            let mut dirty_batch_start: u64 = 0;
+
+            let mmap_base = region.get_host_address(MemoryRegionAddress(0)).unwrap();
+            for (i, v) in kvm_bitmap.iter().enumerate() {
+                for j in 0..64 {
+                    let is_kvm_page_dirty = ((v >> j) & 1u64) != 0u64;
+                    let page_offset = ((i * 64) + j) * page_size;
+                    let is_firecracker_page_dirty = firecracker_bitmap.dirty_at(page_offset);
+                    if is_kvm_page_dirty || is_firecracker_page_dirty {
+                        // We are at the start of a new batch of dirty pages.
+                        if write_size == 0 {
+                            // Seek forward over the unmodified pages.
+                            dirty_batch_start = page_offset as u64;
+                        }
+                        write_size += page_size;
+                    } else if write_size > 0 {
+                        let start = Instant::now();
+
+                        eprintln!(
+                            "starting write of {}B  (source {}, dest {})",
+                            write_size,
+                            dirty_batch_start,
+                            writer_offset + dirty_batch_start
+                        );
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                mmap_base.offset((dirty_batch_start) as isize),
+                                source_map.offset((writer_offset + dirty_batch_start) as isize)
+                                    as *mut u8,
+                                write_size,
+                            );
+                        }
+
+                        eprintln!(
+                            "writing {}B took {}ms",
+                            write_size,
+                            start.elapsed().as_millis()
+                        );
+                        total_written += write_size;
+                        write_size = 0;
+                    }
+                }
+            }
+
+            if write_size > 0 {
+                let start = Instant::now();
+
+                eprintln!(
+                    "starting final write of {}B (source {}, dest {}) (total_size: {})",
+                    write_size,
+                    dirty_batch_start,
+                    writer_offset + dirty_batch_start,
+                    len
+                );
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        mmap_base.offset((dirty_batch_start) as isize),
+                        source_map.offset((writer_offset + dirty_batch_start) as isize) as *mut u8,
+                        write_size,
+                    );
+                }
+                total_written += write_size;
+                eprintln!(
+                    "writing {}B took {}ms",
+                    write_size,
+                    start.elapsed().as_millis()
+                );
+            }
+            writer_offset += region.len();
+            if let Some(bitmap) = firecracker_bitmap {
+                bitmap.reset();
+            }
+
+            Ok(())
+        })
+        .map_err(SnapshotMemoryError::WriteMemory);
+
+    eprintln!(
+        "total write time: {}ms, total written: {}B",
+        start.elapsed().as_millis(),
+        total_written
+    );
+
+    eprintln!("memfd {}, len {}", fd, len);
+
+    res
 }
 
 #[cfg(test)]

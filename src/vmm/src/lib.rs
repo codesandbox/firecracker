@@ -115,9 +115,9 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::time::Duration;
 
 use event_manager::{EventManager as BaseEventManager, EventOps, Events, MutEventSubscriber};
+use persist::MemoryDescriptor;
 use seccompiler::BpfProgram;
 use snapshot::Persist;
-use userfaultfd::Uffd;
 use utils::epoll::EventSet;
 use utils::eventfd::EventFd;
 use utils::terminal::Terminal;
@@ -310,10 +310,6 @@ pub struct Vmm {
     // Guest VM core resources.
     vm: Vm,
     guest_memory: GuestMemoryMmap,
-    // Save UFFD in order to keep it open in the Firecracker process, as well.
-    // Since this field is never read again, we need to allow `dead_code`.
-    #[allow(dead_code)]
-    uffd: Option<Uffd>,
     vcpus_handles: Vec<VcpuHandle>,
     // Used by Vcpus and devices to initiate teardown; Vmm should never write here.
     vcpus_exit_evt: EventFd,
@@ -322,6 +318,11 @@ pub struct Vmm {
     mmio_device_manager: MMIODeviceManager,
     #[cfg(target_arch = "x86_64")]
     pio_device_manager: PortIODeviceManager,
+
+    // The mem file that should be mmaped. We need to keep a reference of the UFFD in the
+    // process so we allow dead_code
+    #[allow(dead_code)]
+    memory_descriptor: Option<MemoryDescriptor>,
 }
 
 impl Vmm {

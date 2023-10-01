@@ -414,6 +414,10 @@ pub struct PutRequestsMetrics {
     pub machine_cfg_count: SharedIncMetric,
     /// Number of failures in configuring the machine.
     pub machine_cfg_fails: SharedIncMetric,
+    /// Number of PUTs for setting memory backing file.
+    pub memory_backend_cfg_count: SharedIncMetric,
+    /// Number of failures in configuring the machine.
+    pub memory_backend_cfg_fails: SharedIncMetric,
     /// Number of PUTs for configuring a guest's vCPUs.
     pub cpu_cfg_count: SharedIncMetric,
     /// Number of failures in configuring a guest's vCPUs.
@@ -449,6 +453,8 @@ impl PutRequestsMetrics {
             logger_fails: SharedIncMetric::new(),
             machine_cfg_count: SharedIncMetric::new(),
             machine_cfg_fails: SharedIncMetric::new(),
+            memory_backend_cfg_count: SharedIncMetric::new(),
+            memory_backend_cfg_fails: SharedIncMetric::new(),
             cpu_cfg_count: SharedIncMetric::new(),
             cpu_cfg_fails: SharedIncMetric::new(),
             metrics_count: SharedIncMetric::new(),

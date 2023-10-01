@@ -11,7 +11,10 @@ bench = false
 [dependencies]
 aws-lc-rs = "1.0.2"
 bitflags = "2.0.2"
-derive_more = { version = "0.99.17", default-features = false, features = ["from", "display"] }
+derive_more = { version = "0.99.17", default-features = false, features = [
+  "from",
+  "display",
+] }
 event-manager = "0.3.0"
 kvm-bindings = { version = "0.6.0", features = ["fam-wrappers"] }
 kvm-ioctls = "0.15.0"
@@ -24,21 +27,23 @@ serde_json = "1.0.78"
 timerfd = "1.5.0"
 thiserror = "1.0.32"
 displaydoc = "0.2.4"
-userfaultfd = "0.7.0"
+userfaultfd = { git = "https://github.com/codesandbox/userfaultfd-rs.git", rev = "27b2ff3bc71774b79338afca051d49cb07146d90", features = [
+  "linux5_7",
+] }
 versionize = "0.1.10"
 versionize_derive = "0.1.5"
 vm-allocator = "0.1.0"
 vm-fdt = "0.2.0"
 vm-superio = "0.7.0"
 log = { version = "0.4.17", features = ["std", "serde"] }
-aes-gcm =  { version = "0.10.1", default-features = false, features = ["aes"] }
+aes-gcm = { version = "0.10.1", default-features = false, features = ["aes"] }
 base64 = "0.13.0"
 bincode = "1.2.1"
 micro_http = { git = "https://github.com/firecracker-microvm/micro-http" }
 
 net_gen = { path = "../net_gen" }
 seccompiler = { path = "../seccompiler" }
-snapshot = { path = "../snapshot"}
+snapshot = { path = "../snapshot" }
 utils = { path = "../utils" }
 virtio_gen = { path = "../virtio_gen" }
 
