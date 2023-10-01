@@ -551,7 +551,7 @@ dependencies = [
  "snapshot",
  "thiserror",
  "timerfd",
- "userfaultfd 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "userfaultfd",
  "utils",
  "vmm",
 ]
@@ -1294,45 +1294,20 @@ checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 [[package]]
 name = "userfaultfd"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6a38c7e24af201e66f02659492f86ccd5efa9fd62f2c851fff3961a60e81966"
+source = "git+https://github.com/codesandbox/userfaultfd-rs.git?rev=27b2ff3bc71774b79338afca051d49cb07146d90#27b2ff3bc71774b79338afca051d49cb07146d90"
 dependencies = [
  "bitflags 2.3.3",
  "cfg-if",
  "libc",
  "nix",
  "thiserror",
- "userfaultfd-sys 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "userfaultfd"
-version = "0.7.0"
-source = "git+https://github.com/codesandbox/userfaultfd-rs.git?rev=7e52200e92bc0edaf7d6342040210328e67b8cfe#7e52200e92bc0edaf7d6342040210328e67b8cfe"
-dependencies = [
- "bitflags 2.3.3",
- "cfg-if",
- "libc",
- "nix",
- "thiserror",
- "userfaultfd-sys 0.5.0 (git+https://github.com/codesandbox/userfaultfd-rs.git?rev=7e52200e92bc0edaf7d6342040210328e67b8cfe)",
+ "userfaultfd-sys",
 ]
 
 [[package]]
 name = "userfaultfd-sys"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d75595d2a62b7db16bd47f5a1ce14e1fe05ccbe27d6c96721a958e0a027cad41"
-dependencies = [
- "bindgen 0.68.1",
- "cc",
- "cfg-if",
-]
-
-[[package]]
-name = "userfaultfd-sys"
-version = "0.5.0"
-source = "git+https://github.com/codesandbox/userfaultfd-rs.git?rev=7e52200e92bc0edaf7d6342040210328e67b8cfe#7e52200e92bc0edaf7d6342040210328e67b8cfe"
+source = "git+https://github.com/codesandbox/userfaultfd-rs.git?rev=27b2ff3bc71774b79338afca051d49cb07146d90#27b2ff3bc71774b79338afca051d49cb07146d90"
 dependencies = [
  "bindgen 0.68.1",
  "cc",
@@ -1463,7 +1438,7 @@ dependencies = [
  "snapshot",
  "thiserror",
  "timerfd",
- "userfaultfd 0.7.0 (git+https://github.com/codesandbox/userfaultfd-rs.git?rev=7e52200e92bc0edaf7d6342040210328e67b8cfe)",
+ "userfaultfd",
  "utils",
  "versionize",
  "versionize_derive",

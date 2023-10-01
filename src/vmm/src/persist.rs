@@ -3,17 +3,14 @@
 
 //! Defines state structures for saving/restoring a Firecracker microVM.
 
-use std::ffi::CString;
 use std::fmt::Debug;
 use std::fs::{File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixStream;
-use std::os::unix::prelude::FromRawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use libc::memfd_create;
 use log::{info, warn};
 use seccompiler::BpfThreadMap;
 use semver::Version;
@@ -652,7 +649,6 @@ pub(crate) fn guest_memory_from_uffd(
         )
         .user_mode_only(false)
         .non_blocking(true)
-        .user_mode_only(false)
         .create()
         .map_err(GuestMemoryFromUffdError::Create)?;
 

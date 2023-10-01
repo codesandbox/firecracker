@@ -92,6 +92,7 @@ impl TryFrom<&Request> for ParsedRequest {
             (Method::Put, "drives", Some(body)) => parse_put_drive(body, path_tokens.next()),
             (Method::Put, "logger", Some(body)) => parse_put_logger(body),
             (Method::Put, "machine-config", Some(body)) => parse_put_machine_config(body),
+            (Method::Put, "memory-backend", Some(body)) => parse_put_memory_backend(body),
             (Method::Put, "metrics", Some(body)) => parse_put_metrics(body),
             (Method::Put, "mmds", Some(body)) => parse_put_mmds(body, path_tokens.next()),
             (Method::Put, "network-interfaces", Some(body)) => {

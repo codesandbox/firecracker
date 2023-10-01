@@ -145,7 +145,7 @@ pub enum StartMicrovmError {
     #[error("Cannot set vm resources: {0}")]
     SetVmResources(VmConfigError),
     /// Failed to create an UFFD Builder.
-    #[error("Cannot create uffd socket: {0}")]
+    #[error("Cannot create uffd socket: {0:?}")]
     CreateUffdBuilder(userfaultfd::Error),
     /// Unable to connect to UDS in order to send information regarding
     /// handling guest memory page-fault events.

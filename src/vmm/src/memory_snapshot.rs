@@ -139,7 +139,6 @@ impl SnapshotMemory for GuestMemoryMmap {
                             }
                             write_size += page_size;
                         } else if write_size > 0 {
-                            let start = Instant::now();
                             // We are at the end of a batch of dirty pages.
                             writer.write_all_volatile(
                                 &region.get_slice(

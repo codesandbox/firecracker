@@ -23,6 +23,8 @@ pub enum NormalizeCpuidError {
     ExtendedCacheFeatures(#[from] ExtendedCacheFeaturesError),
     /// Failed to set vendor ID in leaf 0x0: {0}
     VendorId(#[from] VendorIdError),
+    /// Failed to disable async pf
+    DisableAsyncPf,
 }
 
 /// Error type for setting leaf 0 section.
@@ -186,6 +188,7 @@ impl super::Cpuid {
         self.update_feature_info_entry(cpu_index, cpu_count)?;
         self.update_extended_topology_entry(cpu_index, cpu_count, cpu_bits, cpus_per_core)?;
         self.update_extended_cache_features()?;
+        // self.disable_kvm_feature_async_pf()?;
 
         // Apply manufacturer specific modifications.
         match self {
@@ -296,6 +299,25 @@ impl super::Cpuid {
         // (the Maximum number of addressable IDs for logical processors in this package)
         // is valid for the package
         set_bit(&mut leaf_1.result.edx, 28, cpu_count > 1);
+
+        Ok(())
+    }
+
+    /// Disable async pf, as it hangs the VM from time to time
+    ///
+    /// # Errors
+    ///
+    /// Returns `NormalizeCpuidError::DisableAsyncPf` if the leaf is not found
+    pub fn disable_kvm_feature_async_pf(&mut self) -> Result<(), NormalizeCpuidError> {
+        // KVM feature bits
+        #[cfg(target_arch = "x86_64")]
+        const KVM_FEATURE_ASYNC_PF_INT_BIT: u8 = 14;
+
+        let leaf: &mut CpuidEntry = self
+            .get_mut(&CpuidKey::leaf(0x4000_0001))
+            .ok_or(NormalizeCpuidError::DisableAsyncPf)?;
+
+        set_bit(&mut leaf.result.eax, KVM_FEATURE_ASYNC_PF_INT_BIT, false);
 
         Ok(())
     }
